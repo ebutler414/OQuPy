@@ -64,15 +64,15 @@ class TensorNetworkProcessTensorBackend:
 
         for tensor in reversed(self._tensors):
             old_cap = self._caps[-1].copy()
-            trace_out = self._trace.copy()
+            trace_out = self._trace.copy() # these are both constants related to the trace of the PT
             trace_in = self._trace.copy()
             ten = tensor.copy()
 
-            ten[1] ^ old_cap[0]
+            ten[1] ^ old_cap[0] #what about index 0?
             ten[2] ^ trace_in[0]
             ten[3] ^ trace_out[0]
 
-            new_cap = ten @ trace_in @ trace_out @ old_cap
+            new_cap = ten @ trace_in @ trace_out @ old_cap #contracts the whole thing
             self._caps.append(new_cap)
 
     def get_bond_dimensions(self) -> np.ndarray:
@@ -107,7 +107,7 @@ class TensorNetworkProcessTensorBackend:
             self._compute_caps()
 
         if self._initial_tensor is None:
-            initial_tensor = add_singleton(initial_state, 0)
+            initial_tensor = add_singleton(initial_state, 0) #this seems to add an extra leg to the 1 leg initial density vector
             current = tn.Node(initial_tensor, backend=self._backend)
         else:
             current = self._initial_tensor.copy()
@@ -118,8 +118,8 @@ class TensorNetworkProcessTensorBackend:
         states = []
 
         for i, tensor in enumerate(self._tensors):
-            pre, post = controls(i)
-            cap = self._caps[-1-i].copy()
+            pre, post = controls(i) #The liouvellian wrt to the symmertrised Trotter Splitting
+            cap = self._caps[-1-i].copy() #I don't know
             pre_node = tn.Node(pre, backend=self._backend)
             post_node = tn.Node(post, backend=self._backend)
 
@@ -127,6 +127,9 @@ class TensorNetworkProcessTensorBackend:
             edge_dict[current_bond_leg] ^ cap[0]
             state_node = node_dict[current] @ cap
             states.append(state_node.get_tensor())
+            # cap_value = cap.get_tensor()
+            # print('step #{:2n} cap = {} cap shape = {}'.format(i,cap_value,cap_value.shape))
+
 
             current_bond_leg ^ tensor[0]
             current_state_leg ^ pre_node[0]
