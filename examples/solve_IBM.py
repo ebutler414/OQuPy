@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 
 from scipy.integrate import quad, quad_explain
 
-import sys
-sys.path.insert(0,'../..')
+from scipy.constants import Boltzmann, hbar, electron_volt, pi
 
-from qdot.physics import spectral_density
+import time_evolving_mpo as tempo
 
-from scipy.constants import Boltzmann, hbar
-
+omega_cutoff = 2.0e-3* electron_volt * 1e-12 / hbar
+alpha = hbar * 11.2e-3 * omega_cutoff**2 * 1e12/ \
+        (2 * pi * Boltzmann)
 
 from matplotlib import rc
 
@@ -23,17 +23,24 @@ TODO: Make this code cleaner!
 
 '''
 
-np.seterr(all='raise') # this makes sure any exceptions are thrown and dumps me into the except block
+# np.seterr(all='raise') # this makes sure any exceptions are thrown and dumps me into the except block
 
 
 w0 = 0
 
 k_B_new = Boltzmann * 10**(-12) / (hbar)
 
+def get_the_SD(omega): # gets the spectral density
+    correlations = tempo.PowerLawSD(alpha=alpha, 
+                                zeta=3, 
+                                cutoff=omega_cutoff, 
+                                cutoff_type='gaussian',
+                                temperature=0)
+    return correlations.spectral_density(omega)
 
 def coherent_integrand(w,beta,t):
     try:
-        spectral_density_part = -spectral_density(w)/(w**2)*(1-np.cos(w*t)) 
+        spectral_density_part = -get_the_SD(w)/(w**2)*(1-np.cos(w*t)) 
     except FloatingPointError:
         if w < 10**(-6):
             return - 0.0206855 * t**4*w**4 / beta - 0.00172379 * (-1.29973 * t**4 + beta**2 * t**4) * w**6 / beta
@@ -50,56 +57,35 @@ def coherent_integrand(w,beta,t):
 
 coherent_integrand_vec = np.vectorize(coherent_integrand)
 
-def coherent_integrand_old(w,beta,t):
-    try:
-        spectral_density_part = -spectral_density(w)/(w**2)*(1-np.cos(w*t))**2 
-    except FloatingPointError:
-        if w < 10**(-6):
-            return - 0.0206855 * t**4*w**4 / beta - 0.00172379 * (-1.29973 * t**4 + beta**2 * t**4) * w**6 / beta
 
-        spectral_density_part = 0
-
-    try:
-        bose_part = (1/(-1+np.exp(w*beta))+1/2)
-    except FloatingPointError:
-        bose_part = 1/2
-        if w*beta < 16:
-            print('Help me Jeebus') #this corrisponds to a bose function value of 10^(-7), should be safe enough
-    return spectral_density_part * bose_part
-
-coherent_integrand_old_vec = np.vectorize(coherent_integrand_old)
-
-
-def coherent_sy(t,beta,w0,p1,p2):
-    integral,error = quad(coherent_integrand,0,np.inf,args=(beta,t,))
+# (not sure if this is fully correct, check below line WRT to transfer report)
+def coherent_sy(t,beta,w0,p1,p2): # solves for sy 
+    np.seterr(over='raise') # this makes sure any exceptions are thrown and dumps me into the except block
+    integral = quad(coherent_integrand,0,np.inf,args=(beta,t,))[0]
+    np.seterr(over='warn')
     return np.exp(integral)/(2j) * (np.conj(p1)*p2 * np.exp(1j*w0*t) - p1*np.conj(p2)* np.exp(-1j*w0*t))
 
-coherent_sy_vec = np.vectorize(coherent_sy)
-
+# this is def correct
 def coherent_I_B(t,beta,w0,p1,p2):
+    np.seterr(over='raise')
     integral = quad(coherent_integrand,0,np.inf,args=(beta,t,))[0]
+    np.seterr(over='warn')
     return np.exp(integral)
 
-coherent_I_B_vec = np.vectorize(coherent_I_B)
-
-def coherent_I_B_old(t,beta,w0,p1,p2):
-    integral = quad(coherent_integrand_old,0,np.inf,args=(beta,t,))[0]
-    return np.exp(integral)
-
-coherent_I_B_old_vec = np.vectorize(coherent_I_B_old)
 
 
-
-
-def save_I_B(temp):
+def save_I_B(temp,show=False):
     tempo_x = np.linspace(0,5,100)
+    coherent_I_B_vec = np.vectorize(coherent_I_B)
     tempo_ibm = coherent_I_B_vec(tempo_x,1/(k_B_new*temp),0,0,0)
     np.save('analytical_ibm_20_x',tempo_x)
     np.save('analytical_ibm_20_y',tempo_ibm)
 
-    fig8 = plt.figure()
-    plt.plot(tempo_x,tempo_ibm)
-    plt.title('this is what your saving')
+    if show:
+        fig8 = plt.figure()
+        plt.plot(tempo_x,tempo_ibm)
+        plt.title('this is what your saving')
+        plt.show()
 
 
 
@@ -124,28 +110,7 @@ def plot_I_B_loads(beta_list):
     plt.grid()
     plt.savefig('i_b_loads.pdf')
 
-temp_list = np.geomspace(0.1,1000,5)
-temp_list = np.array([0.001,1,2,5,20,40,77,273.16,400])
-#temp_list = np.array([0.001])
 
-
-
-beta_list = 1 / (k_B_new * temp_list)
-
-plot_I_B_loads(beta_list)
-
-temp_I_B = 77 #77K liquid nitrogen
-beta_I_B = 1/(temp_I_B*k_B_new) #77K liquid nitrogen
-
-w_0 = 4*np.pi
-
-x_t_long = np.linspace(0,2,100)
-
-y_sy_coherent = coherent_sy_vec(x_t_long,1/(77*k_B_new),w_0,1/np.sqrt(2),1j/np.sqrt(2))
-
-# calculates IB
-
-y_I_B = coherent_I_B_vec(x_t_long,beta_I_B,w_0,1/np.sqrt(2),1j/np.sqrt(2))
 
 def plot_twinx_graph():
 
@@ -175,26 +140,3 @@ def plot_twinx_graph():
     ax51.grid()
     fig5.legend()
     fig5.tight_layout()
-
-def compare_old_and_new():
-    fig7 = plt.figure()
-    beta = 1 / k_B_new #1K
-    x_t = np.linspace(0,5,100)
-    
-    y_old = coherent_I_B_old_vec(x_t,beta,w0,1,1)
-    plt.plot(x_t,y_old,label='old definition')
-    
-    y_new = coherent_I_B_vec(x_t,beta,w0,1,1)
-    plt.plot(x_t,y_new,label='corrected definition')
-
-    plt.legend()
-    plt.title(r'$I_B$ old vs new')
-    plt.xlabel(r'Time ($ps$)')
-    plt.ylabel(r'$I_B$')
-    plt.tight_layout()
-    plt.grid()
-
-#compare_old_and_new()
-#save_I_B(20)
-#plot_I_B_loads()
-plt.show()

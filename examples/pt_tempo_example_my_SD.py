@@ -1,5 +1,3 @@
-import sys
-sys.path.insert(0,'..')
 import os
 from time import time
 
@@ -13,6 +11,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from scipy import constants
+
+from solve_IBM import coherent_I_B
+coherent_IB_vec = np.vectorize(coherent_I_B)
 
 Omega = 0.0 # 1.0
 # omega_cutoff = 3.0
@@ -28,8 +29,6 @@ def generate_pt(temp):
     start_time = 0.0
     end_time = 10.0
     
-
-    
     correlations = tempo.PowerLawSD(alpha=alpha, 
                                     zeta=3, 
                                     cutoff=omega_cutoff, 
@@ -43,8 +42,6 @@ def generate_pt(temp):
 
 
     tempo_parameters = tempo.TempoParameters(dt=dt, dkmax=dkmax, epsrel=epsrel)
-
-
 
     pt_tempo_parameters = tempo.PtTempoParameters(dt=dt, dkmax=dkmax, epsrel=epsrel)
 
@@ -62,6 +59,8 @@ def generate_lots_of_PTs(temp_list):
 
 
 def plot_lots_of_PTs(temp_list):
+    colours = ["C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9"]
+
     for i,temp in enumerate(temp_list):
 
         pt = tempo.import_process_tensor("details_pt_tempo_{}K.processTensor".format(temp))
@@ -74,8 +73,13 @@ def plot_lots_of_PTs(temp_list):
 
         t2, s2_y = dyn.expectations(tempo.operators.sigma("y"), real=True)
 
-        plt.plot(t2, s2_y, label=r'{}K'.format(temp))#
+        plt.plot(t2, s2_y, label=r'{}K'.format(temp),color=colours[i],zorder=6-i)
+        k_B_new = constants.Boltzmann * 10**(-12) / (constants.hbar)
 
+        s3_y_analytic = coherent_IB_vec(t2,1/(temp*k_B_new),0,0,0)
+
+        plt.plot(t2,s3_y_analytic,linestyle='dashed',zorder=6-i)
+        
     def analytic_solution(t):
         x = (t*omega_cutoff)**2
         phi = 2 * alpha * (1 + (x-1)/(x+1)**2)
@@ -83,17 +87,19 @@ def plot_lots_of_PTs(temp_list):
 
 
     sy_exact = analytic_solution(t2)
-    plt.plot(t2, sy_exact, label=r'$\alpha=0.1$ exact', linestyle="dotted")
+    #plt.plot(t2, sy_exact, label=r'gerlalds exact', linestyle="dotted")
 
 
-    plt.xlabel(r'$t\,\Omega$')
-    plt.ylabel(r'$<S_y>$')
-    plt.legend()
+    plt.xlabel(r'$t(ps)$')
+    plt.ylabel(r'$\langle \sigma_y\rangle$')
+    plt.legend(loc=4)
+    plt.tight_layout()
 
 
-temp_list  = np.array([0,1,5,20])
+#temp_list  = np.array([0.0001,5,20])
+temp_list = np.array([0.0001,0.01,1,3,5])
 
-# generate_lots_of_PTs(temp_list)
+#generate_lots_of_PTs(temp_list)
 plot_lots_of_PTs(temp_list)
 
 
