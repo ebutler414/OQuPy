@@ -25,7 +25,7 @@ alpha = constants.hbar * 11.2e-3 * omega_cutoff**2 * 1e12/ \
 system = tempo.System(0.0 * Omega * tempo.operators.sigma("x"))
 initial_state = tempo.operators.spin_dm("y+")
 def generate_pt(temp):
-
+    temp_new_units = temp * constants.Boltzmann * 1e-12 / constants.hbar
     start_time = 0.0
     end_time = 10.0
     
@@ -33,7 +33,7 @@ def generate_pt(temp):
                                     zeta=3, 
                                     cutoff=omega_cutoff, 
                                     cutoff_type='gaussian',
-                                    temperature=temp)
+                                    temperature=temp_new_units)
     bath = tempo.Bath(0.5 * tempo.operators.sigma("z"), correlations)
 
     dt = 0.1 # 0.01
@@ -96,10 +96,10 @@ def plot_lots_of_PTs(temp_list):
     plt.tight_layout()
 
 
-#temp_list  = np.array([0.0001,5,20])
-temp_list = np.array([0.0001,0.01,1,3,5])
+temp_list  = np.array([0.0001,5,20])
+# temp_list = np.array([0.0001,0.01,1,3,5])
 
-#generate_lots_of_PTs(temp_list)
+# generate_lots_of_PTs(temp_list)
 plot_lots_of_PTs(temp_list)
 
 
