@@ -28,10 +28,102 @@ import time_evolving_mpo as tempo
 
 
 class SimpleAdjointTensor(SimpleProcessTensor):
-    pass # not implemented yet..........
 
+    def compute_derivatives_from_system(
+            self,
+            system: BaseSystem,
+            start_time: Optional[float] = 0.0,
+            dt: Optional[float] = None,
+            initial_state: Optional[ndarray] = None,
+            num_steps: Optional[int] = None) -> List[ndarray]:
+        forward_tensors =  compute_forward_dynamics_from_system(
+            process_tensor=self,
+            system=system,
+            start_time=start_time,
+            dt=dt,
+            initial_state=initial_state,
+            num_steps=num_steps,
+            record_all=True)
+        
 
+def compute_tensors_from_system(
+        process_tensor: BaseProcessTensor,
+        system: BaseSystem,
+        start_time: Optional[float] = 0.0,
+        dt: Optional[float] = None,
+        initial_state: Optional[ndarray] = None,
+        num_steps: Optional[int] = None,
+        record_all: Optional[bool] = True) -> Dynamics:
+    """
+    Compute the system dynamics for a given system Hamiltonian.
 
+    Parameters
+    ----------
+    process_tensor: BaseProcessTensor
+        A process tensor object.
+    system: BaseSystem
+        Object containing the system Hamiltonian information.
+
+    Returns
+    -------
+    dynamics: Dynamics
+        The system dynamics for the given system Hamiltonian
+        (accounting for the interaction with the environment).
+    """
+    # -- input parsing --
+    assert isinstance(system, BaseSystem), \
+        "Parameter `system` is not of type `tempo.BaseSystem`."
+
+    hs_dim = system.dimension
+    assert hs_dim == process_tensor.hilbert_space_dimension
+
+    if dt is None:
+        dt = process_tensor.dt
+        if dt is None:
+            raise ValueError("Process tensor has no timestep, "\
+                + "please specify time step 'dt'.")
+    try:
+        __dt = float(dt)
+    except Exception as e:
+        raise AssertionError("Time step 'dt' must be a float.") from e
+
+    try:
+        __start_time = float(start_time)
+    except Exception as e:
+        raise AssertionError("Start time must be a float.") from e
+
+    if initial_state is not None:
+        assert initial_state.shape == (hs_dim, hs_dim)
+
+    if num_steps is not None:
+        try:
+            __num_steps = int(num_steps)
+        except Exception as e:
+            raise AssertionError("Number of steps must be an integer.") from e
+    else:
+        __num_steps = None
+
+    # -- compute dynamics --
+
+    def propagators(step: int):
+        """Create the system propagators (first and second half) for the
+        time step `step`. """
+        t = __start_time + step * __dt
+        first_step = expm(system.liouvillian(t+__dt/4.0)*__dt/2.0).T
+        second_step = expm(system.liouvillian(t+__dt*3.0/4.0)*__dt/2.0).T
+        return first_step, second_step
+
+    states = _compute_dynamics(process_tensor=process_tensor,
+                               controls=propagators,
+                               initial_state=initial_state,
+                               num_steps=__num_steps,
+                               record_all=record_all)
+    if record_all:
+        times = __start_time + np.arange(len(states))*__dt
+    else:
+        times = [__start_time + len(states)*__dt]
+
+    return Dynamics(times=list(times),states=states)
 
 def _compute_dynamics_forwards(
         process_tensor: BaseProcessTensor,
