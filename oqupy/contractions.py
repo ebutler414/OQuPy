@@ -160,6 +160,7 @@ def _compute_dynamics_all(
         with_field: bool,
         system: BaseSystem,
         initial_field: float,
+        target_state: ndarray, # for calculating gradient
         initial_state: ndarray,
         dt: float,
         num_steps: int,
@@ -167,6 +168,7 @@ def _compute_dynamics_all(
         process_tensor: Union[List[BaseProcessTensor], BaseProcessTensor],
         control: Control,
         record_all: bool,
+        get_gradient: bool,
         epsrel: float,
         subdiv_limit: int,
         progress_type: Text) -> Union[Dynamics, DynamicsWithField]:
@@ -212,18 +214,35 @@ def _compute_dynamics_all(
     current_node = tn.Node(initial_ndarray)
     current_edges = current_node[:]
 
+    if get_gradient:
+
+
+        # transposing the target state yields the element wise product
+        # necessary for computing fidelity (see paper)
+        transposed_ts = target_state.T
+        target_state_ndarray = transposed_ts.reshape(hs_dim**2)# vectorised
+        current_list_forwards = []
+        current_list_backwards = []
+
+
+
     states = []
     if with_field:
         fields = []
 
-    if with_field:
         title = "--> Compute dynamics with field:"
+        # i don't know why there was two if statements, there only needs to be one
     else:
         title = "--> Compute dynamics:"
     prog_bar = get_progress(progress_type)(num_steps, title)
     prog_bar.enter()
 
+
     for step in range(num_steps+1):
+        if get_gradient:
+            current_list_forwards.append(tn.replicate_node(current_node))
+
+
         # -- apply pre measurement control --
         pre_measurement_control, post_measurement_control = controls(step)
         if pre_measurement_control is not None:
@@ -267,6 +286,10 @@ def _compute_dynamics_all(
             current_node, current_edges, first_half_prop)
         current_node, current_edges = _apply_pt_mpos(
             current_node, current_edges, pt_mpos)
+
+        if get_gradient:
+            current_list_forwards.append(tn.replicate_node(current_node))
+
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop)
 
@@ -278,6 +301,83 @@ def _compute_dynamics_all(
     if with_field:
         final_field = compute_field(step, previous_state, field, final_state)
         fields.append(final_field)
+
+
+
+    if get_gradient:
+        # backpropagation
+
+        # initialised with transpose target
+        target_state_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
+        current_node = tn.Node(target_state_ndarray)
+        current_edges = current_node[:]
+
+        for step in reversed(range(num_steps+1)):
+            if get_gradient:
+                current_list_forwards.append(tn.replicate_node(current_node))
+                # NOTE: notice how this is in the exact same position in the code as
+                # it is in the forward propagation
+
+            # -- apply pre measurement control --
+            pre_measurement_control, post_measurement_control = controls(step)
+            if post_measurement_control is not None: # switched from pre to post_measurement_node
+                current_node, current_edges = _apply_system_superoperator(
+                    current_node, current_edges, pre_measurement_control)
+
+            if step == num_steps:
+                break
+
+            # -- extract current state -- update field --
+            if with_field: # deleted record_all call cause you've already calculated that
+                raise NotImplementedError
+                caps = _get_caps(process_tensors, step)
+                state_tensor = _apply_caps(current_node, current_edges, caps)
+                state = state_tensor.reshape(hs_dim, hs_dim)
+            if with_field:
+                raise NotImplementedError
+                if step == 0:
+                    field = initial_field
+                else:
+                    field = compute_field(step, previous_state, field, state)
+                previous_state = state
+            # if record_all:
+            #     states.append(state)
+            #     if with_field:
+            #         fields.append(field)
+
+            prog_bar.update(step)
+
+            # -- apply post measurement control --
+            if pre_measurement_control is not None: # switched to pre_measurement
+                current_node, current_edges = _apply_system_superoperator(
+                    current_node, current_edges, post_measurement_control)
+
+            # -- propagate one time step --
+            if with_field:
+                first_half_prop, second_half_prop = propagators(step, state, field)
+            else:
+                first_half_prop, second_half_prop = propagators(step)
+            pt_mpos = _get_pt_mpos(process_tensors, step)
+
+
+            # =======================================================
+            # this block of code is currently broken:
+            # there's gonna be some tensor wires and transposes
+            # that need to be taken care of, which i haven't done
+            current_node, current_edges = _apply_system_superoperator(
+                current_node, current_edges, first_half_prop)
+            current_node, current_edges = _apply_pt_mpos(
+                current_node, current_edges, pt_mpos)
+
+            if get_gradient:
+                current_list_backwards.append(tn.replicate_node(current_node))
+                # NOTE: notice how this is in the exact same position in the code as
+                # it is in the forward propagation
+
+            current_node, current_edges = _apply_system_superoperator(
+                current_node, current_edges, second_half_prop)
+            # =========================================================
+
 
     prog_bar.update(num_steps)
     prog_bar.exit()
