@@ -216,7 +216,6 @@ def _compute_dynamics_all(
 
     if get_gradient:
 
-
         # transposing the target state yields the element wise product
         # necessary for computing fidelity (see paper)
         transposed_ts = target_state.T
@@ -241,6 +240,7 @@ def _compute_dynamics_all(
     for step in range(num_steps+1):
         if get_gradient:
             current_list_forwards.append(tn.replicate_node(current_node))
+            # is this in the correct place w.r.t. the measurement nodes?
 
 
         # -- apply pre measurement control --
@@ -313,18 +313,19 @@ def _compute_dynamics_all(
         current_edges = current_node[:]
 
         for step in reversed(range(num_steps+1)):
-            if get_gradient:
-                current_list_forwards.append(tn.replicate_node(current_node))
-                # NOTE: notice how this is in the exact same position in the code as
-                # it is in the forward propagation
+            # no `if gradient` statement as we're already in that block
+            current_list_forwards.append(tn.replicate_node(current_node))
+            # NOTE: notice how this is in the exact same position in the code as
+            # it is in the forward propagation
 
-            # -- apply pre measurement control --
+            # -- apply post measurement control (backprop) --
             pre_measurement_control, post_measurement_control = controls(step)
             if post_measurement_control is not None: # switched from pre to post_measurement_node
                 current_node, current_edges = _apply_system_superoperator(
-                    current_node, current_edges, pre_measurement_control)
+                    current_node, current_edges, post_measurement_control)
+                    # this should still be correct
 
-            if step == num_steps:
+            if step == num_steps: # move this plz
                 break
 
             # -- extract current state -- update field --
@@ -347,10 +348,10 @@ def _compute_dynamics_all(
 
             prog_bar.update(step)
 
-            # -- apply post measurement control --
+            # -- apply pre measurement control (backprop)--
             if pre_measurement_control is not None: # switched to pre_measurement
                 current_node, current_edges = _apply_system_superoperator(
-                    current_node, current_edges, post_measurement_control)
+                    current_node, current_edges, pre_measurement_control)
 
             # -- propagate one time step --
             if with_field:
@@ -365,17 +366,17 @@ def _compute_dynamics_all(
             # there's gonna be some tensor wires and transposes
             # that need to be taken care of, which i haven't done
             current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, first_half_prop)
+                current_node, current_edges,second_half_prop)
             current_node, current_edges = _apply_pt_mpos(
                 current_node, current_edges, pt_mpos)
 
-            if get_gradient:
-                current_list_backwards.append(tn.replicate_node(current_node))
-                # NOTE: notice how this is in the exact same position in the code as
-                # it is in the forward propagation
+            # no `if gradient` statement as we're already within that block
+            current_list_backwards.append(tn.replicate_node(current_node))
+            # NOTE: notice how this is in the exact same position in the code as
+            # it is in the forward propagation
 
             current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, second_half_prop)
+                current_node, current_edges, first_half_prop)
             # =========================================================
 
 
