@@ -18,7 +18,7 @@ Module for various applications involving contractions of the process tensor.
 from typing import List, Optional, Text, Tuple, Union
 
 import numpy as np
-from numpy import ndarray
+from numpy import gradient, ndarray
 import tensornetwork as tn
 from scipy.linalg import expm
 from scipy import integrate
@@ -87,6 +87,102 @@ def compute_dynamics(
         process_tensor, control, record_all, epsrel=None, subdiv_limit=None,
         progress_type=progress_type)
     return dynamics
+
+
+def compute_dynamics_and_gradient(
+        system: Union[System, TimeDependentSystem],
+        initial_state: Optional[ndarray] = None, # this is not optional
+        target_state: Optional[ndarray] = None, # this is not optional
+        dt: Optional[float] = None, # why is dt given here and not intrinsic to the pt
+        num_steps: Optional[int] = None,
+        start_time: Optional[float] = 0.0,
+        process_tensor: Optional[Union[List[BaseProcessTensor],
+                                       BaseProcessTensor]] = None,
+        control: Optional[Control] = None,
+        # record_all: Optional[bool] = True, # this is not optional
+        progress_type: Optional[Text] = None
+        ) -> Tuple[Dynamics,ndarray]:
+    """
+    Compute the system dynamics for a given system Hamiltonian,
+    and aditionally calculate the gradient with respect to some fidelity
+    with a target state
+
+    Parameters
+    TODO: update
+    ----------
+    system: Union[System, TimeDependentSystem]
+        Object containing the system Hamiltonian information.
+    initial_state: ndarray
+        Initial system state.
+    dt: float
+        Length of a single time step.
+    num_steps: int
+        Optional number of time steps to be computed.
+    start_time: float
+        Optional start time offset.
+    process_tensor: Union[List[BaseProcessTensor],BaseProcessTensor]
+        Optional process tensor object or list of process tensor objects.
+    control: Control
+        Optional control operations.
+    record_all: bool
+        If `false` function only computes the final state.
+    progress_type: str (default = None)
+        The progress report type during the computation. Types are:
+        {``silent``, ``simple``, ``bar``}. If `None` then
+        the default progress type is used.
+
+    Returns
+    -------
+    dynamics: Dynamics
+        The system dynamics for the given system Hamiltonian
+        (accounting for the interaction with the environment).
+    """
+    dynamics,current_list_forwards,current_list_backwards = _compute_dynamics_all(
+        False, system, None, initial_state, target_state, dt, num_steps, start_time,
+        process_tensor, control, epsrel=None, subdiv_limit=None,
+        progress_type=progress_type)
+
+    def combine_derivs(
+            current_list_forwards: list,
+            current_list_backwards: list,
+            dprop_list: list) -> ndarray:
+        """
+        Combines the derivatives of the propagators w.r.t. the fidelity
+        with the derivatives of the propagators w.r.t. the control params
+
+        parameters
+        ----------
+
+        current_list_forwards: list,
+            the tensors from the forwardprop
+        current_list_backwards: list,
+            the tensors from the backprop
+        dprop_list: list
+            the user provided derivatives of the propagators w.r.t. the desired
+            control parameters
+
+        Returns
+        -------
+        gradient: ndarray
+            the gradient of the fidelity of a calculation with a target state
+            w.r.t. the propagators, aka
+            $\nabla F$
+
+        """
+
+        return gradient
+
+    gradient = combine_derivs(current_list_forwards,
+            current_list_backwards,
+            dprop_list)
+
+
+    # i think this should return an object that inherits from dynamics
+    # which contains both the dynamics and gradient
+
+    return dynamics,gradient
+
+
 
 
 def compute_dynamics_with_field(
@@ -160,15 +256,15 @@ def _compute_dynamics_all(
         with_field: bool,
         system: BaseSystem,
         initial_field: float,
-        target_state: ndarray, # for calculating gradient
         initial_state: ndarray,
+        target_state: ndarray, # for calculating gradient
         dt: float,
         num_steps: int,
         start_time: float,
         process_tensor: Union[List[BaseProcessTensor], BaseProcessTensor],
         control: Control,
         record_all: bool,
-        get_gradient: bool,
+        get_gradient: bool, # inserted
         epsrel: float,
         subdiv_limit: int,
         progress_type: Text) -> Union[Dynamics, DynamicsWithField]:
@@ -391,6 +487,8 @@ def _compute_dynamics_all(
 
     if with_field:
         return DynamicsWithField(times=list(times),states=states, fields=fields)
+    if get_gradient:
+        return Dynamics,current_list_forwards,current_list_backwards
 
     return Dynamics(times=list(times),states=states)
 
