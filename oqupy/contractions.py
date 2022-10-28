@@ -405,12 +405,12 @@ def _compute_dynamics_all(
 
         # initialised with transpose target
         target_state_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
-        current_node = tn.Node(target_state_ndarray)
+        current_node = tn.Node(np.kron(final_cap,target_state_ndarray))
         current_edges = current_node[:]
 
         for step in reversed(range(num_steps+1)):
             # no `if gradient` statement as we're already in that block
-            current_list_forwards.append(tn.replicate_node(current_node))
+            current_list_backwards.append(tn.replicate_node(current_node))
             # NOTE: notice how this is in the exact same position in the code as
             # it is in the forward propagation
 
@@ -418,7 +418,7 @@ def _compute_dynamics_all(
             pre_measurement_control, post_measurement_control = controls(step)
             if post_measurement_control is not None: # switched from pre to post_measurement_node
                 current_node, current_edges = _apply_system_superoperator(
-                    current_node, current_edges, post_measurement_control)
+                    current_node, current_edges, post_measurement_control.T)
                     # this should still be correct
 
             if step == num_steps: # move this plz
@@ -447,7 +447,7 @@ def _compute_dynamics_all(
             # -- apply pre measurement control (backprop)--
             if pre_measurement_control is not None: # switched to pre_measurement
                 current_node, current_edges = _apply_system_superoperator(
-                    current_node, current_edges, pre_measurement_control)
+                    current_node, current_edges, pre_measurement_control.T)
 
             # -- propagate one time step --
             if with_field:
