@@ -27,7 +27,7 @@ from scipy import integrate
 
 from oqupy.base_api import BaseAPIClass
 from oqupy.config import NpDtype
-import oqupy.operators as opr
+import oqupy.operators as op
 
 class BaseSystem(BaseAPIClass):
     """Base class for systems. """
@@ -602,12 +602,12 @@ class SystemChain(BaseAPIClass):
         assert isinstance(site, int)
         assert site >= 0
         assert site < len(self)
-        op = np.array(hamiltonian, dtype=NpDtype)
-        assert len(op.shape) == 2
-        assert op.shape[0] == op.shape[1]
-        assert self._hs_dims[site] == op.shape[0]
+        operator = np.array(hamiltonian, dtype=NpDtype)
+        assert len(operator.shape) == 2
+        assert operator.shape[0] == operator.shape[1]
+        assert self._hs_dims[site] == operator.shape[0]
 
-        self._site_liouvillians[site] += (0.0-1.0j) * opr.commutator(op)
+        self._site_liouvillians[site] += (0.0-1.0j) * op.commutator(operator)
 
     def add_site_liouvillian(
             self,
@@ -652,11 +652,11 @@ class SystemChain(BaseAPIClass):
         gamma: float
             Optional multiplicative factor :math:`\gamma`.
         """
-        op = np.array(lindblad_operator, dtype=NpDtype)
-        op_dagger = op.conjugate().T
+        operator = np.array(lindblad_operator, dtype=NpDtype)
+        operator_dagger = operator.conjugate().T
         self._site_liouvillians[site] += \
-            gamma * (opr.left_right_super(op, op_dagger) \
-                      - 0.5 * opr.acommutator(np.dot(op_dagger, op)))
+            gamma * (op.left_right_super(operator, operator_dagger) \
+                - 0.5 * op.acommutator(np.dot(operator_dagger, operator)))
 
 
     def add_nn_hamiltonian(
@@ -697,7 +697,7 @@ class SystemChain(BaseAPIClass):
         assert self._hs_dims[site+1] == op_r.shape[0]
 
         self._nn_liouvillians[site] += (0.0-1.0j) \
-                                       * opr.cross_commutator(op_l, op_r)
+                                       * op.cross_commutator(op_l, op_r)
 
     def add_nn_liouvillian(
             self,
@@ -758,12 +758,12 @@ class SystemChain(BaseAPIClass):
         assert self._hs_dims[site] == op_l.shape[0]
         assert self._hs_dims[site+1] == op_r.shape[0]
 
-        cross_lr = opr.cross_left_right_super(
+        cross_lr = op.cross_left_right_super(
             operator_1_l=op_l,
             operator_1_r=op_l.T.conjugate(),
             operator_2_l=op_r,
             operator_2_r=op_r.T.conjugate())
-        cross_acomm = opr.cross_acommutator(
+        cross_acomm = op.cross_acommutator(
             operator_1=op_l.T.conjugate() @ op_l,
             operator_2=op_r.T.conjugate() @ op_r)
 
@@ -932,11 +932,12 @@ def _check_mean_field_system_eom(dim_list, field_eom):
 def _liouvillian(hamiltonian, gammas, lindblad_operators):
     """Lindbladian for a specific Hamiltonian, gammas and lindblad_operators.
     """
-    liouvillian = -1j * opr.commutator(hamiltonian)
-    for gamma, op in zip(gammas, lindblad_operators):
-        op_dagger = op.conjugate().T
-        liouvillian += gamma * (opr.left_right_super(op, op_dagger) \
-                                - 0.5 * opr.acommutator(np.dot(op_dagger, op)))
+    liouvillian = -1j * op.commutator(hamiltonian)
+    for gamma, operator in zip(gammas, lindblad_operators):
+        operator_dagger = operator.conjugate().T
+        liouvillian += \
+            gamma * (op.left_right_super(operator, operator_dagger) \
+                    - 0.5 * op.acommutator(np.dot(operator_dagger, operator)))
     return liouvillian
 
 def _create_density_matrix(dim, seed=1):
