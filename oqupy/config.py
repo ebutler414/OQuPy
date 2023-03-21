@@ -58,10 +58,16 @@ PT_MAX_DKMAX = 256
 PT_DEFAULT_TOLERANCE = 3.9e-3
 
 
-# -- PT_TEBD -----------------------------------------------------------------
+# -- PT_TEBD ------------------------------------------------------------------
 
 # Default Trotter splitting order
 PT_TEBD_DEFAULT_ORDER = 2
 
 # Default relative singular value truncation tolerance
 PT_TEBD_DEFAULT_EPSREL = 1.0e-5
+
+
+# -- Finite Differencing ------------------------------------------------------
+
+# Recommended finite difference `h` [ToDo: insert literature]
+FINITE_DIFFERENCE_H = NotImplemented

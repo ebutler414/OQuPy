@@ -39,6 +39,7 @@ __all__ = [
     'NumericsError',
     'NumericsWarning',
     'operators',
+    'ParametrizedSystem',
     'PowerLawSD',
     'PtTebd',
     'PtTebdParameters',
@@ -93,6 +94,7 @@ from oqupy.process_tensor import FileProcessTensor
 from oqupy.pt_tebd import PtTebd
 from oqupy.pt_tebd import PtTebdParameters
 
+from oqupy.system import ParametrizedSystem
 from oqupy.system import System
 from oqupy.system import SystemChain
 from oqupy.system import TimeDependentSystem
