@@ -29,7 +29,9 @@ __all__ = [
     'compute_dynamics_with_field',
     'Control',
     'Dynamics',
+    'fidelity_gradient',
     'FileProcessTensor',
+    'forward_backward_propagation',
     'guess_tempo_parameters',
     'helpers',
     'import_process_tensor',
@@ -79,6 +81,9 @@ from oqupy.dynamics import MeanFieldDynamics
 
 from oqupy.exceptions import NumericsError
 from oqupy.exceptions import NumericsWarning
+
+from oqupy.gradient import fidelity_gradient
+from oqupy.gradient import forward_backward_propagation
 
 from oqupy import helpers
 
