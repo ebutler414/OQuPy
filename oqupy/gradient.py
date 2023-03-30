@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-ToDo
+Frontend for computing the gradient of some objective function w.r.t. some
+control parameters.
 """
 from typing import Dict, Iterable, List, Optional, Tuple
 
