@@ -1,16 +1,6 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
-import sys
 import oqupy
 import numpy as np
 import matplotlib.pyplot as plt
-
-
-# In[2]:
 
 
 sigma_x = oqupy.operators.sigma("x")
@@ -21,33 +11,12 @@ down_density_matrix = oqupy.operators.spin_dm("z-")
 mixed_density_matrix = oqupy.operators.spin_dm("mixed")
 
 
-# In[3]:
-
-
-w = np.linspace(0,400,1000)
-Jw = ((0.002) * w)/(1 + (w**2/(800*np.pi))**2)
-plt.plot(w, Jw)
-plt.xlabel('ω(GHz)')
-plt.ylabel('J(ω)')
-#plt.xticks([8])
-plt.grid()
-
-
-# In[4]:
-
-
 def sd(w):
     return ((0.002) * w)/(1 + (w**2/(800*np.pi))**2)
 
 
-# In[5]:
-
-
 Omega = 8.0
 temperature = 0.01
-
-
-# In[6]:
 
 
 correlations = oqupy.correlations.CustomSD(j_function = sd ,
@@ -56,13 +25,7 @@ correlations = oqupy.correlations.CustomSD(j_function = sd ,
                                           temperature = temperature)
 
 
-# In[7]:
-
-
 tempo_parameters = oqupy.TempoParameters(dt=0.0085, dkmax=30, epsrel=10**(-7))
-
-
-# In[8]:
 
 
 oqupy.helpers.plot_correlations_with_parameters(correlations,tempo_parameters)
@@ -94,7 +57,7 @@ print(process_tensor.get_bond_dimensions())
 # In[11]:
 
 
-dyns = oqupy.contractions.compute_dynamics(
+dyns = oqupy.compute_dynamics(
     system=system,
     initial_state=initial_state,
     process_tensor=process_tensor)
@@ -109,7 +72,7 @@ plt.plot(times, states[:,1,1].real, label=r'$\rho_{11}$')
 plt.xlabel(r"$ t$")
 plt.ylabel(r"Amplitude")
 plt.grid()
-plt.title('Evolution of the density matrix elements dt=0.0085, dkmax=30, epsrel=10**(-7)')
+# plt.title('Evolution of the density matrix elements dt=0.0085, dkmax=30, epsrel=10**(-7)')
 plt.legend()
 
 
@@ -124,30 +87,15 @@ plt.ylabel(r"$ S=-tr(\rho ln(\rho))$")
 plt.title('Von Neumann Entropy of transmon')
 plt.grid()
 
-
-# In[13]:
-
-
-tempo_sys = oqupy.Tempo(system=system,
-                        bath=bath,
-                        initial_state=initial_state,
-                        start_time=0,
-                        parameters=tempo_parameters)
-dynamics = tempo_sys.compute(end_time= max_time)
-
-
-# In[14]:
-
-
 t = np.linspace(0,max_time,100)
 
 
 # In[15]:
 
 
-t, s_x = dynamics.expectations(sigma_x, real=True)
-t, s_y = dynamics.expectations(sigma_y, real=True)
-t, s_z = dynamics.expectations(sigma_z, real=True)
+t, s_x = dyns.expectations(sigma_x, real=True)
+t, s_y = dyns.expectations(sigma_y, real=True)
+t, s_z = dyns.expectations(sigma_z, real=True)
 
 plt.plot(t, s_x, label=r'$<\sigma_{x}>$')
 plt.xlabel(r'$t$')
@@ -182,9 +130,9 @@ plt.legend()
 # In[18]:
 
 
-t, s_x = dynamics.expectations(sigma_x, real=True)
-t, s_y = dynamics.expectations(sigma_y, real=True)
-t, s_z = dynamics.expectations(sigma_z, real=True)
+t, s_x = dyns.expectations(sigma_x, real=True)
+t, s_y = dyns.expectations(sigma_y, real=True)
+t, s_z = dyns.expectations(sigma_z, real=True)
 
 plt.plot(t, s_x, label=r'$<\sigma_{x}>$')
 plt.plot(t, s_y, label=r'$<\sigma_{y}>$')
@@ -194,10 +142,4 @@ plt.ylabel(r'$<\sigma_{i}>$')
 #plt.ylim((0.0,1.0))
 plt.grid()
 plt.legend()
-
-
-# In[ ]:
-
-
-
 
