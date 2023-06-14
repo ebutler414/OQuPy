@@ -37,3 +37,9 @@ print(dm_final_colvec_liouville)
 density_matrix_recovered = dm_final_colvec_liouville.reshape(d,d,order='F')
 # success
 print(density_matrix_recovered)
+
+choi_matrix_intermediate = superoperator.swapaxes(0,2)
+choi_matrix_intermediate_2 = choi_matrix_intermediate.swapaxes(2,3)
+choi_matrix = choi_matrix_intermediate_2.swapaxes(1,3)
+
+print(np.einsum('ijkl,kl->ij',choi_matrix,density_matrix))
