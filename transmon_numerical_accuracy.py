@@ -16,14 +16,20 @@ from path import dynamics_path,pt_path
 # ===============================
 generate_process_tensors = True
 generate_data = True
+print_bond_dimensions = False
 
-max_time = 5.0
+max_time = 20.0
 
 # np.array([dt,dkmax,esprel])
 params_list = [
-    [0.0085,30,10**(-7)],
-    [0.0085,30,10**(-8)],
-    [0.0085,30,10**(-9)],]
+
+    [0.01,70,10**(-8)],
+    [0.0085,82,10**(-8)], # same dkmax, smaller dt
+    [0.01,70,10**(-7)],
+    [0.01,80,10**(-8)],
+    [0.01,90,10**(-8)],
+
+    ]
 
 # ===============================
 
@@ -75,13 +81,13 @@ if generate_process_tensors:
         # (that's what the next line does)
         filename_replaced = filename.replace('.','-')
         # pt_path specifies the path for a seperate folder (so we don't have all
-        # of the pts dumped in our main folder, keep things tidy) 
+        # of the pts dumped in our main folder, keep things tidy)
         # (also with strings, 'string a ' + 'string b' = 'string a string b'),
         # last term is filename (as stated above, not necessary)
         process_tensor.export(pt_path + filename_replaced + '.pt',
             overwrite=True)
 
-if generate_data:
+if generate_data or print_bond_dimensions:
     # first, attempt to load all the process tensors, just to make sure they
     # exist
 
@@ -96,6 +102,13 @@ if generate_data:
             pt_path + filename_replaced + '.pt',
             process_tensor_type='simple')
 
+        if print_bond_dimensions:
+            print('bond dimensions for')
+            print('dt = {}, dkmax = {}, esprel = {}'.format(
+            params[0],params[1],params[2]))
+            print(pt.get_bond_dimensions())
+
+if generate_data:
     # now compute dynamics for each PT (need to reload PT, but that is quick)
     for i in range(len(params_list)):
         params = params_list[i]
@@ -104,8 +117,8 @@ if generate_data:
         filename_replaced = filename.replace('.','-')
         pt = oqupy.import_process_tensor(
             pt_path + filename_replaced + '.pt',
-            process_tensor_type='simple') 
-                
+            process_tensor_type='simple')
+
         initial_state = mixed_density_matrix
         Omega = 8.0
         system = oqupy.System(0.5 * Omega * (sigma_z))
@@ -115,7 +128,7 @@ if generate_data:
             process_tensor=pt)
         states = dyns.states
         times = dyns.times
-        
+
         filename_states = 'states_dt{}dkmax{}esprel{}'.format(
                 params[0],params[1],params[2])
         states_name_replaced = filename_states.replace('.','-')
