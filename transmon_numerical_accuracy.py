@@ -14,7 +14,7 @@ from path import dynamics_path,pt_path
 
 # ~~~~~~~~~~ params ~~~~~~~~~~~~~
 # ===============================
-generate_process_tensors = True
+generate_process_tensors = False
 generate_data = True
 print_bond_dimensions = False
 
@@ -71,8 +71,8 @@ if generate_process_tensors:
         # future based off what parameters we want to use and not have to
         # generate the PT every single time (the curly braces and .format() call
         # inserts the variables at the time into the arrays)
-        filename = 'pt_dt{}dkmax{}esprel{}'.format(
-            params[0],params[1],params[2])
+        filename = 'pt_dt{}dkmax{}esprel{}maxtime{}'.format(
+            params[0],params[1],params[2],max_time)
         # because the dt and possibly esprel have . in them and because these
         # are filenames, it might look like i'm calling this a file extension
         # (in case you don't know, file extensions on mac and linux are just a
@@ -95,8 +95,8 @@ if generate_data or print_bond_dimensions:
     # only for it to crash mid way because one PT didn't actually exist
     for i in range(len(params_list)):
         params = params_list[i]
-        filename = 'pt_dt{}dkmax{}esprel{}'.format(
-            params[0],params[1],params[2])
+        filename = 'pt_dt{}dkmax{}esprel{}maxtime{}'.format(
+            params[0],params[1],params[2],max_time)
         filename_replaced = filename.replace('.','-')
         pt = oqupy.import_process_tensor(
             pt_path + filename_replaced + '.pt',
@@ -112,8 +112,8 @@ if generate_data:
     # now compute dynamics for each PT (need to reload PT, but that is quick)
     for i in range(len(params_list)):
         params = params_list[i]
-        filename = 'pt_dt{}dkmax{}esprel{}'.format(
-            params[0],params[1],params[2])
+        filename = 'pt_dt{}dkmax{}esprel{}maxtime{}'.format(
+            params[0],params[1],params[2],max_time)
         filename_replaced = filename.replace('.','-')
         pt = oqupy.import_process_tensor(
             pt_path + filename_replaced + '.pt',
@@ -129,11 +129,11 @@ if generate_data:
         states = dyns.states
         times = dyns.times
 
-        filename_states = 'states_dt{}dkmax{}esprel{}'.format(
-                params[0],params[1],params[2])
+        filename_states = 'states_dt{}dkmax{}esprel{}maxtime{}'.format(
+                params[0],params[1],params[2],max_time)
         states_name_replaced = filename_states.replace('.','-')
-        filename_times = 'times_dt{}dkmax{}esprel{}'.format(
-                params[0],params[1],params[2])
+        filename_times = 'times_dt{}dkmax{}esprel{}maxtime{}'.format(
+                params[0],params[1],params[2],max_time)
         times_name_replaced = filename_times.replace('.','-')
 
         np.save(dynamics_path+states_name_replaced,states)

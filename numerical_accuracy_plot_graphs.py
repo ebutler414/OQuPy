@@ -21,7 +21,7 @@ max_time = 20.0
 # plot difference will only work if all of the timesteps in the comparison list
 # are the same, otherwise will give error. (you could figure out how to do this,
 # but i haven't bothered)
-plot_difference = True
+plot_difference = False
 # index of the list to sum the difference between
 reference_index = 2
 
@@ -30,7 +30,7 @@ reference_index = 2
 params_list = [
 
     [0.01,70,10**(-8)],
-    # [0.0085,82,10**(-8)], # same dkmax, smaller dt
+    [0.0085,82,10**(-8)], # same dkmax, smaller dt
     [0.01,70,10**(-7)],
     [0.01,80,10**(-8)],
     [0.01,90,10**(-8)],
@@ -57,11 +57,11 @@ if plot_difference:
 for i in range(len(params_list)):
     params = params_list[i]
 
-    filename_states = 'states_dt{}dkmax{}esprel{}'.format(
-            params[0],params[1],params[2])
+    filename_states = 'states_dt{}dkmax{}esprel{}maxtime{}'.format(
+            params[0],params[1],params[2],max_time)
     states_name_replaced = filename_states.replace('.','-')
-    filename_times = 'times_dt{}dkmax{}esprel{}'.format(
-            params[0],params[1],params[2])
+    filename_times = 'times_dt{}dkmax{}esprel{}maxtime{}'.format(
+            params[0],params[1],params[2],max_time)
     times_name_replaced = filename_times.replace('.','-')
     times = np.load(dynamics_path + times_name_replaced + '.npy')
     states = np.load(dynamics_path + states_name_replaced + '.npy')
@@ -120,6 +120,7 @@ if plot_difference:
     plt.title('difference between dt = {}, dkmax = {} esprel = {}, and:'.format(
         params_list[reference_index][0], params_list[reference_index][1], 
         params_list[reference_index][2]))
+    plt.ylabel(r'$\sigma_z$')
 
 plt.figure(0)
 plt.legend()
