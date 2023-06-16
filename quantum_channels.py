@@ -11,7 +11,6 @@ dm_colvec = density_matrix.reshape(d**2,order='F')
 superoperator = np.arange(d**4).reshape(d,d,d,d)
 print(superoperator)
 superoperator_colvec = np.swapaxes(superoperator,2,3)
-print(superoperator_colvec)
 
 # superoperator as in tempo
 liouville_superoperator = superoperator.reshape(d**2,d**2)
@@ -37,9 +36,13 @@ print(dm_final_colvec_liouville)
 density_matrix_recovered = dm_final_colvec_liouville.reshape(d,d,order='F')
 # success
 print(density_matrix_recovered)
+choi_matrix = np.swapaxes(superoperator,0,2)
+choi_matrix = np.swapaxes(choi_matrix,2,3)
+choi_matrix = np.swapaxes(choi_matrix,1,3)
 
-choi_matrix_intermediate = superoperator.swapaxes(0,2)
-choi_matrix_intermediate_2 = choi_matrix_intermediate.swapaxes(2,3)
-choi_matrix = choi_matrix_intermediate_2.swapaxes(1,3)
+print('choi_matrix')
+print(choi_matrix)
 
-print(np.einsum('ijkl,kl->ij',choi_matrix,density_matrix))
+# print(np.einsum('ijkl,li->kj',choi_matrix,density_matrix))
+print(np.einsum('kilj,kl->ij',choi_matrix,density_matrix)) # correct
+print(np.einsum('ijkl,ik->jl',choi_matrix,density_matrix))
