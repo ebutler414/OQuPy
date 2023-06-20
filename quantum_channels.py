@@ -42,18 +42,14 @@ choi_matrix = np.swapaxes(choi_matrix,1,3)
 print('choi_matrix')
 print(choi_matrix)
 
-# print(np.einsum('ijkl,li->kj',choi_matrix,density_matrix))
+# obtain final density matrix by applying quantum channel in choi matrix form
+# should be same density matrix as above
 print(np.einsum('kilj,kl->ij',choi_matrix,density_matrix)) # correct
 print(np.einsum('ijkl,ik->jl',choi_matrix,density_matrix))
 
-choi_as_matrix = np.reshape(choi_matrix,(d**2,d**2))
+# assuming superoperator is column vectorised
+superoperator_colvec = np.swapaxes(superoperator,2,3)
 
-eigvals,eigvec = eig(choi_as_matrix)
+choi_matrix_v2 = np.swapaxes(superoperator_colvec,0,3)
+print(np.einsum('ijkl,ik->jl',choi_matrix_v2,density_matrix))
 
-kraus_operators = np.zeros((d**2,d,d))
-for i in range(d**2):
-    # see scipy documentation, right eigenvector is the column vector
-    kraus_operators[i] = eigvec[:,i].reshape(d,d)
-
-print(eigvals)
-print(eigvec)
