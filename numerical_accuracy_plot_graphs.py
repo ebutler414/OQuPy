@@ -100,7 +100,7 @@ for i in range(len(params_list)):
             + ',dt={},dkmax={},esprel={}'.format(
             params[0],params[1],params[2]))
 if plot_difference:
-    colours = ["C0", "C1", "C2", "C3", "C4", 
+    colours = ["C0", "C1", "C2", "C3", "C4",
                 "C5", "C6", "C7", "C8", "C9"]
     plt.figure(3)
     for i in range(len(params_list)):
@@ -115,10 +115,10 @@ if plot_difference:
             plt.plot(times,difference_z,color=colours[i],
                     label='dt = {}, dkmax = {}, esprel = {}'.format(
                     params_list[i][0], params_list[i][1], params_list[i][2]))
-    
+
     plt.legend()
     plt.title('difference between dt = {}, dkmax = {} esprel = {}, and:'.format(
-        params_list[reference_index][0], params_list[reference_index][1], 
+        params_list[reference_index][0], params_list[reference_index][1],
         params_list[reference_index][2]))
     plt.ylabel(r'$\sigma_z$')
 

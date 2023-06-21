@@ -33,7 +33,7 @@ def density_matrix_to_hilbert(rho: ndarray) -> ndarray:
     return rho.reshape(dimension,dimension)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# this section lifted from oqupy.operators, with eoin's additional notes 
+# this section lifted from oqupy.operators, with eoin's additional notes
 # in docstrings
 
 def commutator(operator: ndarray) -> ndarray:
