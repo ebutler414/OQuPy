@@ -24,7 +24,12 @@ def density_matrix_to_hilbert(rho: ndarray) -> ndarray:
     space to hilbert space. i.e. takes a (d**2) vector and returns (d,d) matrix
     """
     assert rho.ndim == 1, "state vector must be a vector"
-    dimension = rho.size
+    dimension_squared = rho.size
+    dimension = np.sqrt(dimension_squared)
+    assert dimension.is_integer(), \
+    "dimension must be a square number since is d_sys**2"
+    # safely convert float from sqrt to int so can be used as a shape
+    dimension = int(dimension)
     return rho.reshape(dimension,dimension)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
