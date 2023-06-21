@@ -7,6 +7,8 @@ quantum channels
 
 import numpy as np
 from numpy import ndarray
+from scipy.linalg import eig
+from typing import Union, Tuple
 
 def density_matrix_to_liouville(rho: ndarray) -> ndarray:
     """
@@ -119,4 +121,42 @@ def transform_superoperator_to_choi(superoperator: ndarray) -> ndarray:
     choi_matrix = np.swapaxes(choi_matrix,1,3)
     return choi_matrix
 
+def transform_choi_to_kraus(choi_matrix: ndarray,
+        return_left_operators: bool = False
+        ) -> Union[ndarray[ndarray],Tuple[ndarray[ndarray]]]:
+    """
+    Transforms a choi matrix expressed as a rank 4 tensor into an array
+    orthogonal Kraus operators, [[kraus_0],[kraus_1]...[kraus_d**2]]
+    """
+
+    assert choi_matrix.ndim == 4, "must be rank 4 tensor"
+    assert choi_matrix.shape[0] == choi_matrix.shape[1] == \
+        choi_matrix.shape[2] == choi_matrix.shape[3], \
+        "all of the indices must be the same dimension"
+
+    dimension = choi_matrix.shape[0]
+
+    choi_vectorised = vectorise_superoperator(choi_matrix)
+    eigenvalues,eigenvectors = eig(choi_vectorised)
+    # stealing wood notation
+    lambda_values = np.sqrt(eigenvalues)
+
+    kraus_matrices = np.zeros((dimension**2,dimension,dimension),dtype='complex128')
+    if return_left_operators:
+        kraus_matrices_left = np.zeros((dimension**2,dimension,dimension),dtype='complex128')
+
+    # someone who is good at numpy indexing would be able to remove this
+    # for-loop. Unfortunately I cannot as I, as a matter of fact, am not good at
+    # anything. (ah in fairness figuring that out would be a pain in the hole)
+    for i in range(lambda_values.size):
+        normalised_eigenvector = eigenvectors[:,i]
+        eigenvector = lambda_values[i] * normalised_eigenvector
+        kraus_matrix = eigenvector.reshape(dimension,dimension)
+        if return_left_operators:
+            kraus_matrices_left[i,:,:] = kraus_matrix.conjugate().T
+        kraus_matrices[i,:,:] = kraus_matrix
+    if return_left_operators:
+        return kraus_matrices,kraus_matrices_left
+    else:
+        return kraus_matrices
 
