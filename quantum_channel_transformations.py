@@ -146,9 +146,11 @@ def transform_choi_to_kraus(choi_matrix: ndarray,
     # stealing wood notation
     lambda_values = np.sqrt(eigenvalues)
 
-    kraus_matrices = np.zeros((dimension**2,dimension,dimension),dtype='complex128')
+    kraus_matrices = np.zeros((dimension**2,dimension,dimension),
+        dtype='complex128')
     if return_left_operators:
-        kraus_matrices_left = np.zeros((dimension**2,dimension,dimension),dtype='complex128')
+        kraus_matrices_left = np.zeros((dimension**2,dimension,dimension),
+            dtype='complex128')
 
     # someone who is good at numpy indexing would be able to remove this
     # for-loop. Unfortunately I cannot as I, as a matter of fact, am not good at
@@ -162,28 +164,34 @@ def transform_choi_to_kraus(choi_matrix: ndarray,
         kraus_matrices[i,:,:] = kraus_matrix
     if return_left_operators:
         return kraus_matrices,kraus_matrices_left
-    else:
-        return kraus_matrices
+    return kraus_matrices
 
 def evolve_using_kraus_operators(
-                                kraus_matrices: ndarray,
+                                kraus_operators: ndarray,
                                 density_matrix: ndarray,) -> ndarray:
+    """
+    Takes an array of Kraus operators, and performes the evolution of the
+    density matrix. The Kraus operators need to be given as an array where the
+    first index is the index of the kraus operators, and the second and third
+    index represent the first and second index of the Kraus operators
+    respectively.
+    """
 
     assert density_matrix.ndim == 2, "density matrix must be a matrix"
     assert density_matrix.shape[0] == density_matrix.shape[1], \
         "density matrix must be square"
     dimension = density_matrix.shape[0]
 
-    assert kraus_matrices.shape[1] == kraus_matrices.shape[2] \
+    assert kraus_operators.shape[1] == kraus_operators.shape[2] \
         == dimension, "Kraus operators should be same shape as density matrix"
-    assert kraus_matrices.shape[0] <= dimension ** 2, \
+    assert kraus_operators.shape[0] <= dimension ** 2, \
         ("For a system of dimension {} there should be no more than {} Kraus"
         "operators".format(dimension,dimension**2))
 
-    final_dm = np.zeros((kraus_matrices.shape[1],kraus_matrices.shape[2]),
+    final_dm = np.zeros((kraus_operators.shape[1],kraus_operators.shape[2]),
         dtype='complex128')
-    for i in range(kraus_matrices.shape[0]):
-        kraus_operator = kraus_matrices[i]
+    for i in range(kraus_operators.shape[0]):
+        kraus_operator = kraus_operators[i]
         kraus_dagger = kraus_operator.conjugate().T
         intermediate = np.matmul(kraus_operator,density_matrix)
         summand = np.matmul(intermediate,kraus_dagger)
