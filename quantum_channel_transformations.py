@@ -9,6 +9,7 @@ import numpy as np
 from numpy import ndarray
 from scipy.linalg import eig
 from typing import Union, Tuple
+from warnings import warn
 
 def density_matrix_to_liouville(rho: ndarray) -> ndarray:
     """
@@ -138,6 +139,10 @@ def transform_choi_to_kraus(choi_matrix: ndarray,
 
     choi_vectorised = vectorise_superoperator(choi_matrix)
     eigenvalues,eigenvectors = eig(choi_vectorised)
+
+    if not np.all(eigenvalues >= 0):
+        warn('some eigenvalues are negative, this is not a CP map')
+
     # stealing wood notation
     lambda_values = np.sqrt(eigenvalues)
 
@@ -160,3 +165,27 @@ def transform_choi_to_kraus(choi_matrix: ndarray,
     else:
         return kraus_matrices
 
+def evolve_using_kraus_operators(
+                                kraus_matrices: ndarray,
+                                density_matrix: ndarray,) -> ndarray:
+
+    assert density_matrix.ndim == 2, "density matrix must be a matrix"
+    assert density_matrix.shape[0] == density_matrix.shape[1], \
+        "density matrix must be square"
+    dimension = density_matrix.shape[0]
+
+    assert kraus_matrices.shape[1] == kraus_matrices.shape[2] \
+        == dimension, "Kraus operators should be same shape as density matrix"
+    assert kraus_matrices.shape[0] <= dimension ** 2, \
+        ("For a system of dimension {} there should be no more than {} Kraus"
+        "operators".format(dimension,dimension**2))
+
+    final_dm = np.zeros((kraus_matrices.shape[1],kraus_matrices.shape[2]),
+        dtype='complex128')
+    for i in range(kraus_matrices.shape[0]):
+        kraus_operator = kraus_matrices[i]
+        kraus_dagger = kraus_operator.conjugate().T
+        intermediate = np.matmul(kraus_operator,density_matrix)
+        summand = np.matmul(intermediate,kraus_dagger)
+        final_dm += summand
+    return final_dm

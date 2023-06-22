@@ -68,4 +68,6 @@ for i in range(right_kraus.shape[0]):
     increment = right @ density_matrix @ left
     rho_f += increment
 
+eigvals = eig(choi_matrix.reshape(d**2,d**2))[0]
 print(rho_f)
+print(eigvals)
