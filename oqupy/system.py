@@ -345,8 +345,11 @@ class ParametrizedSystem(BaseSystem):
                 return pre_prop_derivs, post_prop_derivs
             return propagator_derivatives
 
-        # when no custom propagator deriviatives are given then
-        # do finite differencing
+        else:
+            def propagator_derivs(step: int):
+                # do finite difference
+                return NotImplementedError
+
         return NotImplemented
 
     @property

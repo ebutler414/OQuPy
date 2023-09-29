@@ -17,7 +17,7 @@ control parameters.
 """
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from numpy import ndarray, sqrt
+from numpy import ndarray, sqrt, zeros
 
 from oqupy.contractions import compute_gradient_and_dynamics
 from oqupy.process_tensor import BaseProcessTensor
@@ -30,7 +30,7 @@ def fidelity_gradient(
         target_state: ndarray,
         process_tensor: BaseProcessTensor,
         parameters: Tuple[List],
-        time_steps: Optional[Iterable] = None,
+        time_steps: Optional[ndarray] = None,
         return_fidelity: Optional[bool] = True,
         return_dynamics: Optional[bool] = False) -> Dict:
     """
@@ -55,8 +55,22 @@ def fidelity_gradient(
     if time_steps is None:
         time_steps = range(2*len(process_tensor))
 
-    for n in time_steps:
-        pass # ToDo
+    sys_dim_squared = system.dimension**2
+    dprop_dparam_array = zeros(time_steps.size,
+                               system.dimension**2,
+                               system.dimension**2)
+
+    for i,step in enumerate(time_steps):
+        dprop_dparam_array[i]=system.get_propagator_derivatives(
+            process_tensor.dt,
+            parameters=parameters)
+        # this does not use step, consider whether to change
+
+    final_derivs = _chain_rule(
+        adjoint_tensor=fb_prop_result,
+        dprop_dparam=dprop_dparam_array,
+        pre_node=NotImplemented
+        post_node=NotImplemented)
 
     return NotImplemented
 
@@ -101,3 +115,11 @@ def forward_backward_propagation(
     }
 
     return return_dict
+
+def _chain_rule(
+        adjoint_tensor:ndarray,
+        dprop_dparam:ndarray,
+        pre_node:ndarray,
+        post_node:ndarray)
+
+    return NotImplementedError
