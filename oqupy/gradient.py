@@ -17,8 +17,9 @@ control parameters.
 """
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from numpy import ndarray
+from numpy import ndarray, sqrt
 
+from oqupy.contractions import compute_gradient_and_dynamics
 from oqupy.process_tensor import BaseProcessTensor
 from oqupy.system import ParametrizedSystem
 
@@ -65,7 +66,7 @@ def forward_backward_propagation(
         initial_state: ndarray,
         target_state: ndarray,
         process_tensor: BaseProcessTensor,
-        parameters: Tuple[List],
+        parameters: Tuple[List], # unnecessary?
         return_fidelity: Optional[bool] = True,
         return_dynamics: Optional[bool] = False) -> Dict:
     """
@@ -79,5 +80,24 @@ def forward_backward_propagation(
       'fidelity' : Optional[float]
       'dynamics' : Optional[Dynamics]
     """
-    pass # ToDo
-    return NotImplemented
+    adjoint_tensors,dynamics = compute_gradient_and_dynamics(
+        system=system,
+        initial_state=initial_state,
+        target_state=target_state,
+        process_tensor=process_tensor,
+        record_all=return_dynamics)
+
+    fidelity = None
+    if return_fidelity:
+        sqrt_final_state = sqrt(dynamics.states[-1])
+        intermediate_1 = sqrt_final_state @ target_state
+        inside_of_sqrt = intermediate_1 @ sqrt_final_state
+        fidelity = (sqrt(inside_of_sqrt).trace())**2
+
+    return_dict = {
+        'derivatives':adjoint_tensors,
+        'fidelity':fidelity,
+        'dynamics':dynamics
+    }
+
+    return return_dict

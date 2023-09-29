@@ -15,7 +15,7 @@
 Module for various applications involving contractions of the process tensor.
 """
 
-from typing import List, Optional, Text, Tuple, Union
+from typing import List, Optional, Text, Tuple, Union, Dict
 
 import numpy as np
 from numpy import ndarray
@@ -195,7 +195,7 @@ def compute_gradient_and_dynamics(
         get_forward_and_backprop_list = False,
         subdiv_limit: Optional[int] = SUBDIV_LIMIT,
         liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
-        progress_type: Optional[Text] = None) -> GradientDynamics:
+        progress_type: Optional[Text] = None) -> Tuple[List,Dynamics]:
     """
     Compute some objective function and calculate its gradient w.r.t.
     some control parameters, accounting
@@ -464,16 +464,14 @@ def compute_gradient_and_dynamics(
     else:
         times = [start_time + len(states)*dt]
 
+    dynamics_instance = Dynamics(times=list(times),states=states)
+
     if get_forward_and_backprop_list is False:
         forwardprop_deriv_list = None
         backprop_deriv_list = None
 
+    return deriv_list_reversed,dynamics_instance
 
-    return GradientDynamics(times=list(times),
-            states=states,
-            forwardprop_deriv_list=forwardprop_deriv_list,
-            backprop_deriv_list=backprop_deriv_list,
-            deriv_list=deriv_list_reversed)
 
 def compute_dynamics_with_field(
         mean_field_system: MeanFieldSystem,
