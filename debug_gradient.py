@@ -6,114 +6,10 @@ from scipy.interpolate import interp1d
 from oqupy.process_tensor import BaseProcessTensor
 # function that returns the times that the density matrix is calculated at
 from oqupy.helpers import get_full_timesteps
+
 from oqupy.helpers import get_half_timesteps
 
 import oqupy
-
-def get_ARP_hamiltonian(control_parameters,pt):
-    omega_t_short = control_parameters[:len(pt)] # first half is sigma x
-    delta_t_short = control_parameters[len(pt):] # second half is sigma z
-
-    # interp doesn't extrapolate beyond the last point so any time after t-dt will be out of bounds
-    # need to duplicate the final point so we create the very last 'pixel
-    expval_times = get_full_timesteps(pt,0)
-    #expval_times plus one timestep
-    expval_times_p1 = np.concatenate((expval_times,np.array([pt.dt * len(pt)])))
-    # duplicate last element so any time between t_f-dt and t_f falls within this 'pixel'
-    # otherwise scipy interp1d doesn't like extrapolating so calls it out of bounds
-    omega_t_p1 = np.concatenate((omega_t_short,np.array([omega_t_short[-1]])))
-    delta_t_p1 = np.concatenate((delta_t_short,np.array([delta_t_short[-1]])))
-
-    omega_t_interp = interp1d(expval_times_p1,omega_t_p1,kind='zero')
-    delta_t_interp = interp1d(expval_times_p1,delta_t_p1,kind='zero')
-
-    def hamiltonian_t(t):
-        omega_t = omega_t_interp(t)
-        delta_t = delta_t_interp(t)
-
-        omega_sx = 0.5 * oqupy.operators.sigma('x') * omega_t
-        delta_sz = 0.5 * oqupy.operators.sigma('z') * delta_t
-        hamiltonian = omega_sx + delta_sz
-        return hamiltonian
-
-    return hamiltonian_t
-def time_dependent_finite_difference(
-                    dt,
-                    system,
-                    times,  # again same point as above, why does it need to be repeated.
-                    operator, #the operator to differentiate wrt
-                    h,
-                    timesteps_used = None): # finite difference timestep
-    '''this is a very specific case where the number of derivatives == the number of half timestep propagators
-    TODO: figure out if that's actually correct'''
-
-    ham=system.hamiltonian
-    print('deriv w.r.t. operator')
-    print(operator)
-
-    def dpropagator(system,
-        t, # expectation value times
-        dt,
-        op,
-        h):
-        temp=h # i don't know what this does
-        h=temp
-        '''
-        deriv of propagator wrt the pre node and the post node
-        '''
-
-        # print('old')
-        # print('h =')
-        # print(h)
-        # print('ham = ')
-        # print(ham(t+dt*3.0/4.0))
-
-        post_liouvillian_plus_h=-1j * oqupy.operators.commutator(ham(t+dt*3.0/4.0)+h*op)
-        # print('post_liouvillian_plus_h')
-        # print(post_liouvillian_plus_h)
-        post_liouvillian_minus_h=-1j * oqupy.operators.commutator(ham(t+dt*3.0/4.0)-h*op)
-
-        post_propagator_plus_h=expm(post_liouvillian_plus_h*dt/2.0).T
-        post_propagator_minus_h=expm(post_liouvillian_minus_h*dt/2.0).T
-
-        postderiv=(post_propagator_plus_h-post_propagator_minus_h)/(2.*h)
-
-        pre_liouvillian_plus_h=-1j * oqupy.operators.commutator(ham(t+dt*1.0/4.0)+h*op)
-        pre_liouvillian_minus_h=-1j * oqupy.operators.commutator(ham(t+dt*1.0/4.0)-h*op)
-
-        pre_propagator_plus_h=expm(pre_liouvillian_plus_h*dt/2.0).T
-        pre_propagator_minus_h=expm(pre_liouvillian_minus_h*dt/2.0).T
-        prederiv=(pre_propagator_plus_h-pre_propagator_minus_h)/(2.*h)
-        return prederiv,postderiv
-    prederiv,postderiv=dpropagator(system,times,dt,operator,h)
-
-    print('old prederiv = ')
-    # with np.printoptions(precision=4,suppress=True):
-
-    print(prederiv)
-
-    return 0
-
-
-    pre_derivs = []
-    post_derivs = []
-    for step in range(times.size):
-        prederiv,postderiv=dpropagator(system,times[step],process_tensor.dt,operator,h)
-        pre_derivs.append(prederiv)
-        post_derivs.append(postderiv)
-    print(pre_derivs[0])
-    # print(post_derivs)
-
-    # with np.printoptions(precision=4,suppress=True):
-    #     print(pre_derivs[0])
-    # print(pre_derivs[0])
-    embed()
-    pre_post_derivs_times = process_tensor.get_derivative_times()
-
-    final_derivs = process_tensor.finite_difference_chain_rule(time_array=times,pre_derivs=pre_derivs,post_derivs=post_derivs,timesteps_used=timesteps_used)
-    final_derivs_array = -1 * array(final_derivs) # infidelity
-    return final_derivs_array
-
 
 
 
@@ -153,18 +49,6 @@ else:
     process_tensor = oqupy.import_process_tensor(
                 'optimisation_pt.processTensor','simple')
 
-hz = np.ones(len(process_tensor)) * np.pi/max_time
-hx = np.zeros(len(process_tensor))
-control_params = np.concatenate((hx,hz))
-old_sys = oqupy.TimeDependentSystem(get_ARP_hamiltonian(control_params,process_tensor))
-time_dependent_finite_difference(
-                                    dt=0.05,
-                                    system=old_sys,
-                                    times=0.05,
-                                    operator=0.5*oqupy.operators.sigma('x'),
-                                    h=10**(-6)
-
-)
 
 def get_hamiltonian(hx:np.ndarray,hz:np.ndarray,pt:BaseProcessTensor):
     """
@@ -209,17 +93,8 @@ def dpropagator(hamiltonian,
     """
     deriv of propagator wrt either a pre node or a post node
     """
-    # temp=h
-    # h=temp
-    # print('new')
-    # print('h = ')
-    # print(h)
-    # print('ham = ')
-    # print(hamiltonian(t))
 
     liouvillian_plus_h=-1j * oqupy.operators.commutator(hamiltonian(t)+h*op)
-    # print('liouvillian plus h = ')
-    # print(liouvillian_plus_h)
     liouvillian_minus_h=-1j * oqupy.operators.commutator(hamiltonian(t)-h*op)
 
     propagator_plus_h=expm(liouvillian_plus_h*dt/2.0).T
@@ -231,8 +106,8 @@ def dpropagator(hamiltonian,
 times = get_full_timesteps(process_tensor,start_time=0)
 
 # pi pulse conjugate to s_x
-h_z = np.ones(times.size) * np.pi / max_time
-h_x = np.zeros(times.size)
+h_x = np.ones(times.size) * np.pi / max_time
+h_z = np.zeros(times.size)
 hamiltonian_t = get_hamiltonian(hx=h_x,hz=h_z,pt=process_tensor)
 system = oqupy.TimeDependentSystem(hamiltonian_t)
 
@@ -251,11 +126,10 @@ for i in range(dprop_dpram_times.size):
                         op=0.5*oqupy.operators.sigma('x'),
                         h = 10**(-6))
     dprop_dpram_derivs_x.append(deriv)
-print('new dprop dpararm = ')
-# with np.printoptions(precision=4,suppress=True):
-print(dprop_dpram_derivs_x[0])
-import sys
-sys.exit()
+
+# print(dprop_dpram_derivs_x[0])
+# import sys
+# sys.exit()
 gradient = oqupy.gradient(
                 system=system,
                 initial_state=oqupy.operators.spin_dm('z-'),
@@ -265,7 +139,7 @@ gradient = oqupy.gradient(
                 )
 
 def finite_difference(hx,hz,pt):
-    def hamiltonian_fd(hx,hz,operator):
+    def hamiltonian_fd(hx,hz,operator:np.ndarray):
         # expval times including endtime, to generate the last "pixel"
         expval_times_p1 = get_full_timesteps(pt,0,inc_endtime=True)
         assert hx.size == expval_times_p1.size-1, \
@@ -298,4 +172,3 @@ deriv_list = gradient.deriv_list
 print('deriv_list = ')
 np.set_printoptions(suppress=True,precision=3)
 print(deriv_list[1])
-
