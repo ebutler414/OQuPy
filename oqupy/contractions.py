@@ -261,8 +261,14 @@ def compute_gradient_and_dynamics(
     num_envs = len(process_tensors)
 
     # -- prepare propagators --
-    propagators = system.get_propagators(dt, start_time, subdiv_limit,
+    propagator_functions = system.get_propagators(dt, start_time, subdiv_limit,
                                        liouvillian_epsrel)
+
+    # a list of tuples, each containing two arrays, the pre and post arrays.
+    propagator_list = []
+    for i in range(num_steps):
+        pre,post = propagator_functions(i)
+        propagator_list.append((pre,post))
 
     # -- prepare controls --
     def controls(step: int):
@@ -319,7 +325,8 @@ def compute_gradient_and_dynamics(
                 current_node, current_edges, post_measurement_control)
 
         # -- propagate one time step --
-        first_half_prop, second_half_prop = propagators(step)
+        # unpacks tuple, unlike calling function in usual forwardprop
+        first_half_prop, second_half_prop = propagator_list[step]
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
         current_node, current_edges = _apply_system_superoperator(
@@ -424,7 +431,7 @@ def compute_gradient_and_dynamics(
         # we're propagating backwards so we're actually using the propagators
         # from the previous timestep, hence -1 in next line (see note at start
         # of the loop about removing +1 in range() definition)
-        first_half_prop, second_half_prop = propagators(step-1)
+        first_half_prop, second_half_prop = propagator_list[step-1]
         pt_mpos = _get_pt_mpos_backprop(process_tensors, step-1)
 
         current_node, current_edges = _apply_system_superoperator(

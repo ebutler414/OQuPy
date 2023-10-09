@@ -318,6 +318,7 @@ class GradientDynamics(Dynamics):
     """
     def __init__(
             self,
+            propagators: Optional[List[Tuple[ndarray]]] = None,
             times: Optional[List[float]] = None,
             states: Optional[List[ndarray]] = None,
             deriv_list: Optional[List[ndarray]] = None,
@@ -332,6 +333,7 @@ class GradientDynamics(Dynamics):
         self._backprop_deriv_list = backprop_deriv_list
         self._deriv_list = deriv_list
         self._total_derivs = total_derivs
+        self._propagators = propagators
         for time, state in zip(times, states):
             self.add(time, state)
 
@@ -354,6 +356,10 @@ class GradientDynamics(Dynamics):
     @total_derivs.setter
     def total_derivs(self,total_derivs):
         self._total_derivs = total_derivs
+
+    @property
+    def propagators(self):
+        return self.propagators
 
 def _parse_times_states(times, states) -> Tuple[List[float],
         List[ndarray]] :
