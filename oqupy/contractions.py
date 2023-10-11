@@ -186,6 +186,85 @@ def compute_dynamics(
 
     return Dynamics(times=list(times),states=states)
 
+def _propagate_extendedstate(system,
+      initial_exstate,
+      process_tensor,
+      start_step,
+      num_steps,
+      control,
+      record_tensors
+      ):
+    """
+    Propagate the extended state initial_exstate from start_step forwards in time by num_steps
+    Returns the extended state after num_steps and optionally (if record_tensors) a list of those formed after each step
+    """
+    # NOTE need to update so this parses relevant arguments
+    parsed_parameters = _compute_dynamics_input_parse(
+        False, system, initial_state, dt, num_steps, start_time,
+        process_tensor, control, record_all)
+    system, initial_state, dt, num_steps, start_time, \
+        process_tensors, control, record_all, hs_dim = parsed_parameters
+    num_envs = len(process_tensors)
+
+    # -- prepare propagators --
+    propagators = system.get_propagators(dt, start_time, subdiv_limit,
+                                       liouvillian_epsrel)
+
+    # -- prepare controls --
+    def controls(step: int):
+        return control.get_controls(
+            step,
+            dt=dt,
+            start_time=start_time)
+
+    current_node=initial_exstate
+    forwardprop_deriv_list = []
+    forwardprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
+
+    for step in range(start_step,num_steps+start_step):
+        # -- apply pre measurement control --
+        pre_measurement_control, post_measurement_control = controls(step)
+
+        if pre_measurement_control is not None:
+            current_node, current_edges = _apply_system_superoperator(
+                current_node, current_edges, pre_measurement_control)
+
+        if step == num_steps:
+            break
+
+        # -- extract current state -- update field --
+        if record_all:
+            caps = _get_caps(process_tensors, step)
+            state_tensor = _apply_caps(current_node, current_edges, caps)
+            state = state_tensor.reshape(hs_dim, hs_dim)
+            states.append(state)
+
+        prog_bar.update(step)
+
+        # -- apply post measurement control --
+        if post_measurement_control is not None:
+            current_node, current_edges = _apply_system_superoperator(
+                current_node, current_edges, post_measurement_control)
+
+        # -- propagate one time step --
+        first_half_prop, second_half_prop = propagators(step)
+        pt_mpos = _get_pt_mpos(process_tensors, step)
+
+        current_node, current_edges = _apply_system_superoperator(
+            current_node, current_edges, first_half_prop)
+        current_node, current_edges = _apply_pt_mpos(
+            current_node, current_edges, pt_mpos)
+
+        # appropriate timeslice to store forwardprop is here (after the MPO and
+        # before the second_half_prop)
+        # -- store derivative node --
+        forwardprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
+
+        current_node, current_edges = _apply_system_superoperator(
+            current_node, current_edges, second_half_prop)
+
+
+
 
 def compute_gradient_and_dynamics(
         system: Union[System, TimeDependentSystem],
@@ -480,8 +559,6 @@ def compute_gradient_and_dynamics(
             forwardprop_deriv_list=forwardprop_deriv_list,
             backprop_deriv_list=backprop_deriv_list,
             deriv_list=deriv_list_reversed)
-
-
 
 
 def compute_dynamics_with_field(
