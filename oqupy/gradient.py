@@ -29,7 +29,7 @@ from oqupy.config import INTEGRATE_EPSREL, SUBDIV_LIMIT
 from oqupy.control import Control
 from oqupy.dynamics import GradientDynamics
 from oqupy.process_tensor import BaseProcessTensor
-from oqupy.system import System, TimeDependentSystem
+from oqupy.system import BaseSystem,System, TimeDependentSystem
 from oqupy.contractions import _compute_dynamics_input_parse
 from oqupy.contractions import compute_gradient_and_dynamics
 from oqupy.helpers import get_half_timesteps,get_MPO_times
@@ -161,6 +161,47 @@ def gradient(
         gradient_dynamics.total_derivs = total_derivs
     return gradient_dynamics
 
+def get_adjoint_derivs(
+                gradient_dynamics: GradientDynamics,
+                system: Union[System,TimeDependentSystem]):
+    """
+    Controls not implemented
+    """
+    assert isinstance(gradient_dynamics,GradientDynamics)
+    assert isinstance(system,BaseSystem)
+
+    propagators = gradient_dynamics.propagator_list
+    # propagators is list of tuple of (pre,post),
+    # so number of pre and post nodes is 2xlen(propagators)
+    inner_part = np.arange(1,len(propagators))
+    inner_part = np.repeat(inner_part,2)
+    dtarget_index = np.concatenate((np.array([0]),inner_part,
+                                    np.array(len(propagators))),axis=None)
+    dtarget_index = dtarget_index.astype(int)
+
+    # first_deriv = _combine_derivs_without_propagator(
+    #     target_deriv=gradient_dynamics.deriv_list[0],
+    #     pre_post_decider=0,# false/pre node
+    #     pre=propagators[0][0],
+    #     post=propagators[0][1])
+    derivs = []
+
+    # first and last cases are special
+    for i in range(2*len(propagators)):
+        # 0/False -> Pre node, 1/True -> Post node
+        pre_post_bool = i % 2
+        propagators_list_index = i // 2
+        deriv = _combine_derivs_without_propagator(
+            target_deriv=gradient_dynamics.deriv_list[dtarget_index[i]],
+            pre_post_decider=pre_post_bool,
+            pre=propagators[propagators_list_index][0],
+            post=propagators[propagators_list_index][1])
+        derivs.append(deriv)
+
+    return derivs
+
+
+
 
 
 def _chain_rule(deriv_list: List[ndarray],
@@ -225,34 +266,6 @@ def _chain_rule(deriv_list: List[ndarray],
                     system_params[0],
                     system_params[1])
 
-    def combine_derivs(
-                target_deriv:ndarray,
-                propagator_deriv:ndarray,
-                pre:ndarray,
-                post:ndarray,
-                pre_post_decider:bool):
-        target_deriv_node = tn.Node(target_deriv)
-        propagator_deriv_node = tn.Node(propagator_deriv)
-        # deriv is a post node -> extra node needed is a pre
-        if pre_post_decider:
-            extra_prop_node = tn.Node(pre)
-            target_deriv_node[0] ^ extra_prop_node[0]
-            target_deriv_node[1] ^ propagator_deriv_node[1]
-            extra_prop_node[1] ^ propagator_deriv_node[0]
-
-        # deriv is a pre node -> extra node needed is a post
-        else:
-            extra_prop_node = tn.Node(post)
-            target_deriv_node[0] ^ propagator_deriv_node[0]
-            target_deriv_node[1] ^ extra_prop_node[0]
-            extra_prop_node[1] ^ propagator_deriv_node[1]
-
-        final_node = target_deriv_node @ propagator_deriv_node \
-            @ extra_prop_node
-
-        tensor = final_node.tensor
-        return tensor
-
     for i in range(dprop_times_list.size):
         # find the propagator index as used in contractions
         prop_index = dprop_timestep_index[i] // 2
@@ -274,7 +287,7 @@ def _chain_rule(deriv_list: List[ndarray],
 
         dtarget_index = int(MPO_index_function(dprop_times_list[i]))
 
-        total_derivs[i] = combine_derivs(
+        total_derivs[i] = _combine_derivs(
                     deriv_list[dtarget_index],
                     dprop_dparam_list[i],
                     pre_prop,
@@ -282,3 +295,52 @@ def _chain_rule(deriv_list: List[ndarray],
                     pre_post_decider)
 
     return total_derivs
+
+def _combine_derivs_without_propagator(
+            target_deriv:ndarray,
+            pre:ndarray,
+            post:ndarray,
+            pre_post_decider:bool):
+    target_deriv_node = tn.Node(target_deriv)
+    # deriv is a post node -> extra node needed is a pre
+    if pre_post_decider:
+        extra_prop_node = tn.Node(pre)
+        target_deriv_node[0] ^ extra_prop_node[0]
+
+    # deriv is a pre node -> extra node needed is a post
+    else:
+        extra_prop_node = tn.Node(post)
+        target_deriv_node[1] ^ extra_prop_node[0]
+
+    final_node = target_deriv_node @ extra_prop_node
+
+    tensor = final_node.tensor
+    return tensor
+
+def _combine_derivs(
+            target_deriv:ndarray,
+            propagator_deriv:ndarray,
+            pre:ndarray,
+            post:ndarray,
+            pre_post_decider:bool):
+    target_deriv_node = tn.Node(target_deriv)
+    propagator_deriv_node = tn.Node(propagator_deriv)
+    # deriv is a post node -> extra node needed is a pre
+    if pre_post_decider:
+        extra_prop_node = tn.Node(pre)
+        target_deriv_node[0] ^ extra_prop_node[0]
+        target_deriv_node[1] ^ propagator_deriv_node[1]
+        extra_prop_node[1] ^ propagator_deriv_node[0]
+
+    # deriv is a pre node -> extra node needed is a post
+    else:
+        extra_prop_node = tn.Node(post)
+        target_deriv_node[0] ^ propagator_deriv_node[0]
+        target_deriv_node[1] ^ extra_prop_node[0]
+        extra_prop_node[1] ^ propagator_deriv_node[1]
+
+    final_node = target_deriv_node @ propagator_deriv_node \
+        @ extra_prop_node
+
+    tensor = final_node.tensor
+    return tensor
