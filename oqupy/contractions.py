@@ -32,6 +32,7 @@ from oqupy.operators import left_super, right_super
 from oqupy.util import check_convert, check_isinstance, check_true
 from oqupy.util import get_progress
 from oqupy.dynamics import GradientDynamics
+# from debug_gradient import fd_counter,sign,delta
 
 
 Indices = Union[int, slice, List[Union[int, slice]]]
@@ -51,7 +52,8 @@ def compute_dynamics(
         record_all: Optional[bool] = True,
         subdiv_limit: Optional[int] = SUBDIV_LIMIT,
         liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
-        progress_type: Optional[Text] = None) -> Dynamics:
+        progress_type: Optional[Text] = None,
+        args:Optional[Tuple] = None) -> Dynamics:
     """
     Compute the system dynamics for a given system Hamiltonian, accounting
     (optionally) for interaction with an environment using one or more
@@ -128,7 +130,7 @@ def compute_dynamics(
     title = "--> Compute dynamics:"
     prog_bar = get_progress(progress_type)(num_steps, title)
     prog_bar.enter()
-
+    fd_counter, sign, delta = args
     for step in range(num_steps+1):
         # -- apply pre measurement control --
         pre_measurement_control, post_measurement_control = controls(step)
@@ -156,6 +158,9 @@ def compute_dynamics(
 
         # -- propagate one time step --
         first_half_prop, second_half_prop = propagators(step)
+        additional_matrix = np.zeros(first_half_prop.shape)
+        additional_matrix[fd_counter[0],fd_counter[1]] = delta
+        first_half_prop = first_half_prop + sign * additional_matrix
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
         current_node, current_edges = _apply_system_superoperator(
@@ -486,6 +491,7 @@ def compute_gradient_and_dynamics(
             states=states,
             forwardprop_deriv_list=forwardprop_deriv_list,
             backprop_deriv_list=backprop_deriv_list,
+            propagator_list=propagator_list,
             deriv_list=deriv_list_reversed)
 
 

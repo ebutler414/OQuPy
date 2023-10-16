@@ -1,3 +1,7 @@
+# global delta
+# global fd_counter
+# global sign
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import expm
@@ -10,7 +14,7 @@ from oqupy.helpers import get_full_timesteps
 from oqupy.helpers import get_half_timesteps
 
 import oqupy
-
+from tqdm import tqdm
 
 
 
@@ -105,9 +109,9 @@ def dpropagator(hamiltonian,
 
 times = get_full_timesteps(process_tensor,start_time=0)
 
-# pi pulse conjugate to s_x
-h_x = np.ones(times.size) * np.pi / max_time
-h_z = np.zeros(times.size)
+# pi pulse conjugate to s_z
+h_z = np.ones(times.size) * np.pi / max_time
+h_x = np.zeros(times.size)
 hamiltonian_t = get_hamiltonian(hx=h_x,hz=h_z,pt=process_tensor)
 system = oqupy.TimeDependentSystem(hamiltonian_t)
 
@@ -132,43 +136,46 @@ for i in range(dprop_dpram_times.size):
 # sys.exit()
 gradient = oqupy.gradient(
                 system=system,
-                initial_state=oqupy.operators.spin_dm('z-'),
-                target_state=oqupy.operators.spin_dm('z+'),
+                initial_state=oqupy.operators.spin_dm('x-'),
+                target_state=oqupy.operators.spin_dm('x+'),
                 process_tensor=process_tensor,
                 # dprop_dparam_list=dprop_dpram_derivs_x
                 )
 
-def finite_difference(hx,hz,pt):
-    def hamiltonian_fd(hx,hz,operator:np.ndarray):
-        # expval times including endtime, to generate the last "pixel"
-        expval_times_p1 = get_full_timesteps(pt,0,inc_endtime=True)
-        assert hx.size == expval_times_p1.size-1, \
-            'hx must be same length as number of timesteps, without endtime'
-        assert hz.size == expval_times_p1.size-1, \
-            'hz must be same length as number of timesteps, without endtime'
+# delta = 10**(-2)
+# gradient_fd = np.zeros((system.dimension**2,system.dimension**2),
+#                        dtype='complex128')
+# for i in tqdm(range(system.dimension**2)):
+#     for j in range(system.dimension**2):
+#         fd_counter = (i,j)
+#         sign = 1
+#         target_state = oqupy.operators.spin_dm('x+')
+#         dyn_p_delta = oqupy.compute_dynamics(
+#             system=system,
+#             initial_state=oqupy.operators.spin_dm('x-'),
+#             process_tensor=process_tensor,
+#             progress_type='silent',
+#             args=(fd_counter,sign,delta))
+#         final_state_p_delta = dyn_p_delta.states[-1]
+#         fidelity_p_delta = 1- np.matmul(target_state,final_state_p_delta).trace()
+#         sign = -1
+#         dyn_m_delta = oqupy.compute_dynamics(
+#             system=system,
+#             initial_state=oqupy.operators.spin_dm('x-'),
+#             process_tensor=process_tensor,
+#             progress_type='silent',
+#             args=(fd_counter,sign,delta))
+#         final_state_m_delta = dyn_m_delta.states[-1]
+#         fidelity_m_delta = 1- np.matmul(target_state,final_state_m_delta).trace()
 
-        # duplicate last element so any time between t_f-dt and t_f falls within
-        # this 'pixel' otherwise scipy interp1d doesn't like extrapolating so calls
-        # it out of bounds
-        hx_p1 = np.concatenate((hx,np.array([hx[-1]])))
-        hz_p1 = np.concatenate((hz,np.array([hz[-1]])))
-
-        hx_interp = interp1d(expval_times_p1,hx_p1,kind='zero')
-        hz_interp = interp1d(expval_times_p1,hz_p1,kind='zero')
-
-        def hamiltonian_t(t):
-            _hx = hx_interp(t)
-            _hz = hz_interp(t)
-
-            hx_sx = 0.5 * oqupy.operators.sigma('x') * _hx
-            hz_sz = 0.5 * oqupy.operators.sigma('z') * _hz
-            hamiltonian = hz_sz + hx_sx
-            return hamiltonian
-
-        return hamiltonian_t
+#         deriv = (fidelity_p_delta - fidelity_m_delta) / delta
+#         gradient_fd[i,j] = deriv
+np.save('fd_deriv',gradient_fd)
+with np.printoptions(precision=4,suppress=True):
+    print(gradient_fd)
 
 deriv_list = gradient.deriv_list
 
-print('deriv_list = ')
-np.set_printoptions(suppress=True,precision=3)
-print(deriv_list[1])
+# print('deriv_list = ')
+# np.set_printoptions(suppress=True,precision=3)
+# print(deriv_list[1])
