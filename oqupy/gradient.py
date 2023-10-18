@@ -340,16 +340,16 @@ def _combine_derivs(
     # deriv is a post node -> extra node needed is a pre
     if pre_post_decider:
         extra_prop_node = tn.Node(pre)
-        target_deriv_node[0] ^ extra_prop_node[0]
-        target_deriv_node[1] ^ propagator_deriv_node[1]
+        target_deriv_node[1] ^ extra_prop_node[0]
+        target_deriv_node[0] ^ propagator_deriv_node[1]
         extra_prop_node[1] ^ propagator_deriv_node[0]
 
     # deriv is a pre node -> extra node needed is a post
     else:
         extra_prop_node = tn.Node(post)
-        target_deriv_node[0] ^ propagator_deriv_node[0]
-        target_deriv_node[1] ^ extra_prop_node[0]
-        extra_prop_node[1] ^ propagator_deriv_node[1]
+        target_deriv_node[1] ^ propagator_deriv_node[1]
+        target_deriv_node[0] ^ extra_prop_node[1]
+        extra_prop_node[0] ^ propagator_deriv_node[0]
 
     final_node = target_deriv_node @ propagator_deriv_node \
         @ extra_prop_node
