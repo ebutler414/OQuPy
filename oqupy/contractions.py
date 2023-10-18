@@ -333,6 +333,16 @@ def compute_gradient_and_dynamics(
         # unpacks tuple, unlike calling function in usual forwardprop
         first_half_prop, second_half_prop = propagator_list[step]
         pt_mpos = _get_pt_mpos(process_tensors, step)
+        # if step == 1:
+        #     print(step)
+        #     print('process_tensor = ')
+
+        #     with np.printoptions(precision=4,suppress=True):
+        #         print(pt_mpos)
+        #     import sys
+        #     sys.exit()
+        # with np.printoptions(precision=4,suppress=True):
+        #     print(first_half_prop)
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, first_half_prop)
@@ -384,7 +394,7 @@ def compute_gradient_and_dynamics(
     current_edges = current_node[:]
 
     combined_deriv_list = []
-
+    # backprop_deriv_list = []
     if get_forward_and_backprop_list:
         backprop_deriv_list = [tn.replicate_nodes([current_node])[0]]
 

@@ -191,11 +191,18 @@ def get_adjoint_derivs(
         # 0/False -> Pre node, 1/True -> Post node
         pre_post_bool = i % 2
         propagators_list_index = i // 2
+        pre_array,post_array = propagators[propagators_list_index]
+        # if first or last step, no extra propagaor needed so just set both to
+        # be the identity
+        if i == 0 or i == 2*len(propagators):
+            pre_array = np.identity(pre_array.shape[0])
+            post_array = np.identity(post_array.shape[0])
+
         deriv = _combine_derivs_without_propagator(
             target_deriv=gradient_dynamics.deriv_list[dtarget_index[i]],
             pre_post_decider=pre_post_bool,
-            pre=propagators[propagators_list_index][0],
-            post=propagators[propagators_list_index][1])
+            pre=pre_array,
+            post=post_array)
         derivs.append(deriv)
 
     return derivs
@@ -305,16 +312,21 @@ def _combine_derivs_without_propagator(
     # deriv is a post node -> extra node needed is a pre
     if pre_post_decider:
         extra_prop_node = tn.Node(pre)
-        target_deriv_node[0] ^ extra_prop_node[0]
+        target_deriv_node[1] ^ extra_prop_node[0]
 
     # deriv is a pre node -> extra node needed is a post
     else:
         extra_prop_node = tn.Node(post)
-        target_deriv_node[1] ^ extra_prop_node[0]
+        target_deriv_node[0] ^ extra_prop_node[1]
 
     final_node = target_deriv_node @ extra_prop_node
 
-    tensor = final_node.tensor
+    if pre_post_decider:
+        tensor = final_node.tensor
+    else:
+        # result is transposed dunno why
+        tensor = final_node.tensor.T
+
     return tensor
 
 def _combine_derivs(
