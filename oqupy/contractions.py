@@ -163,9 +163,6 @@ def compute_dynamics(
         current_node, current_edges = _apply_pt_mpos(
             current_node, current_edges, pt_mpos)
 
-
-
-
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop)
 
@@ -186,48 +183,34 @@ def compute_dynamics(
 
     return Dynamics(times=list(times),states=states)
 
-def _propagate_extendedstate(system,
-      initial_exstate,
-      process_tensor,
-      start_step,
-      num_steps,
-      control,
-      record_tensors
-      ):
+
+def compute_extended_states( 
+        parsed_parameters,
+        propagators,
+        current_node,
+        start_steps,
+        end_steps):
     """
-    Propagate the extended state initial_exstate from start_step forwards in time by num_steps
-    Returns the extended state after num_steps and optionally (if record_tensors) a list of those formed after each step
+    Compute the 'extended state' by contracting the input node with the pre-control, 1/4 propagator, post-control, mpo and 3/4 propagator in succesion
     """
-    # NOTE need to update so this parses relevant arguments
-    parsed_parameters = _compute_dynamics_input_parse(
-        False, system, initial_state, dt, num_steps, start_time,
-        process_tensor, control, record_all)
+
     system, initial_state, dt, num_steps, start_time, \
-        process_tensors, control, record_all, hs_dim = parsed_parameters
-    num_envs = len(process_tensors)
+    process_tensors, control, record_all, hs_dim = parsed_parameters
 
-    # -- prepare propagators --
-    propagators = system.get_propagators(dt, start_time, subdiv_limit,
-                                       liouvillian_epsrel)
+    current_edges = current_node[:]
 
-    # -- prepare controls --
-    def controls(step: int):
-        return control.get_controls(
-            step,
-            dt=dt,
-            start_time=start_time)
+    states = []
+    title = "--> Compute dynamics:"
 
-    current_node=initial_exstate
-    forwardprop_deriv_list = []
-    forwardprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
+    extended_state_list = []
 
-    for step in range(start_step,num_steps+start_step):
-        # -- apply pre measurement control --
-        pre_measurement_control, post_measurement_control = controls(step)
+    pt_mpos = _get_pt_mpos(process_tensors, start_steps)
+    current_node, current_edges = _apply_pt_mpos(
+            current_node, current_edges, pt_mpos)
 
-        if pre_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, pre_measurement_control)
+    extended_state_list.append(tn.replicate_nodes([current_node])[0])
+
+    for step in range(start_steps+1,end_steps+1):
 
         if step == num_steps:
             break
@@ -239,30 +222,82 @@ def _propagate_extendedstate(system,
             state = state_tensor.reshape(hs_dim, hs_dim)
             states.append(state)
 
-        prog_bar.update(step)
-
-        # -- apply post measurement control --
-        if post_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, post_measurement_control)
-
         # -- propagate one time step --
         first_half_prop, second_half_prop = propagators(step)
         pt_mpos = _get_pt_mpos(process_tensors, step)
+
+        pt_mpos_extended = _get_pt_mpos(process_tensors,step+1)
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, first_half_prop)
         current_node, current_edges = _apply_pt_mpos(
             current_node, current_edges, pt_mpos)
+    
+        current_node, current_edges = _apply_system_superoperator(
+            current_node, current_edges, second_half_prop)    
+        current_node, current_edges = _apply_pt_mpos(
+            current_node,current_edges,pt_mpos_extended)
+        
+        extended_state_list.append(tn.replicate_nodes([current_node])[0])
 
-        # appropriate timeslice to store forwardprop is here (after the MPO and
-        # before the second_half_prop)
-        # -- store derivative node --
-        forwardprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
+    
+    return extended_state_list
+
+def compute_hessian(current_node,parsed_parameters,propagators):
+
+    system, initial_state, dt, num_steps, start_time, \
+    process_tensors, control, record_all, hs_dim = parsed_parameters
+
+    hessian_matrix = []
+    extended_state_matrix =[] 
+
+
+    forward_prop_states=compute_extended_states(current_node,parsed_parameters,propagators,0,num_steps)
+    n=num_steps
+    i=0
+
+    for state in forward_prop_states:
+        while(i<n):
+            extended_state_matrix[i].append(compute_extended_states(current_node,parsed_parameters,propagators,0,n))
+            i+=1
+    n-=1
+
+    # Get list of back propagated derivatives 
+
+    backprop_deriv_list = []
+
+    for step in reversed(range(num_steps+1)):
+        # -- now the backpropagation part --
+
+        if step == 0: # i think this is correct
+            break
+
+        # -- propagate one time step --
+        # we're propagating backwards so we're actually using the propagators
+        # from the previous timestep, hence -1 in next line (see note at start
+        # of the loop about removing +1 in range() definition)
+        first_half_prop, second_half_prop = propagators(step-1)
+        pt_mpos = _get_pt_mpos_backprop(process_tensors, step-1)
 
         current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, second_half_prop)
+            current_node, current_edges, second_half_prop.T)
+        current_node, current_edges = _apply_pt_mpos(
+            current_node, current_edges, pt_mpos)
 
+        backprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
+
+        current_node, current_edges = _apply_system_superoperator(
+            current_node, current_edges, first_half_prop.T)
+    
+    i=0
+    n=len(backprop_deriv_list)-1
+    for extended_derivatives in extended_state_matrix:
+        for i in range(n):
+            second_derivative = extended_derivatives[i] ^ backprop_deriv_list[n-i]
+            hessian_matrix[i][n]=second_derivative
+        n-=1
+
+    return hessian_matrix
 
 
 
