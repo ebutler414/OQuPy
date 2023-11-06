@@ -299,8 +299,6 @@ def compute_hessian(current_node,parsed_parameters,propagators):
 
     return hessian_matrix
 
-
-
 def compute_gradient_and_dynamics(
         system: Union[System, TimeDependentSystem],
         initial_state: Optional[ndarray] = None,
@@ -511,7 +509,7 @@ def compute_gradient_and_dynamics(
     # the -1s in the indices inside the for loop. Might screw up the final pre
     # node for the Nth step, because if this +1 was here then the final pre node
     # would be -1. this might be a symptom of a bug, TODO: Investigate.
-    for step in reversed(range(num_steps+1)):
+    for step in reversed(range(1,num_steps+1)):
         # -- now the backpropagation part --
 
         # -- apply pre measurement control --
@@ -538,8 +536,8 @@ def compute_gradient_and_dynamics(
         # we're propagating backwards so we're actually using the propagators
         # from the previous timestep, hence -1 in next line (see note at start
         # of the loop about removing +1 in range() definition)
-        first_half_prop, second_half_prop = propagators(step-1)
-        pt_mpos = _get_pt_mpos_backprop(process_tensors, step-1)
+        first_half_prop, second_half_prop = propagators(step)
+        pt_mpos = _get_pt_mpos_backprop(process_tensors, step)
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop.T)
@@ -594,8 +592,6 @@ def compute_gradient_and_dynamics(
             forwardprop_deriv_list=forwardprop_deriv_list,
             backprop_deriv_list=backprop_deriv_list,
             deriv_list=deriv_list_reversed)
-
-
 
 def compute_gradient_and_dynamics_amended(
         system: Union[System, TimeDependentSystem],
@@ -858,16 +854,13 @@ def compute_gradient_and_dynamics_amended(
         # -- propagate one time step --
         # we're propagating backwards so we're actually using the propagators
         # from the next timestep, hence +1 in next line 
-        first_half_prop, second_half_prop = propagators(step-1)
-        pt_mpos = _get_pt_mpos_backprop(process_tensors, step-1)
+        first_half_prop, second_half_prop = propagators(step+1)
+        pt_mpos = _get_pt_mpos_backprop(process_tensors, step+1)
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop.T)
         current_node, current_edges = _apply_pt_mpos(
             current_node, current_edges, pt_mpos)
-
-        # appropriate timeslice in diagram is here
-        # # store derivative node
 
         forwardprop_tensor = forwardprop_deriv_list[step-1]
         
@@ -891,6 +884,8 @@ def compute_gradient_and_dynamics_amended(
             forwardprop_tensor[i] ^ backprop_tensor[i]
 
         mpo_tensor = pt_mpos_list[step]
+        temp_edges = forwardprop_tensor[:]
+        forwardprop_tensor, temp_edges = _apply_system_superoperator(backprop_tensor,temp_edges,mpo_tensor)
 
         deriv = forwardprop_tensor @ backprop_tensor
         combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
