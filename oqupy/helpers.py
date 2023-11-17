@@ -175,7 +175,7 @@ def get_propagator_intervals(pt: BaseProcessTensor,
     that looks like [0,0.5dt,1dt... Ndt]
     """
 
-    times = (np.arange(0,2*len(pt))*pt.dt/2 + start_time)
+    times = (np.arange(0,2*len(pt))*pt.dt/2 + start_time) # len procss tensors == number of mpos stored
     times = np.concatenate((
         times,np.array([pt.dt * len(pt)])))
 
