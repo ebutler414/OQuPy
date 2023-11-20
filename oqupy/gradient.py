@@ -487,15 +487,15 @@ def _chain_rule_amended(deriv_list: List[ndarray],
                     system_params[1])
 
     def combine_derivs(
-                target_deriv:ndarray,
-                propagator_deriv:ndarray):
-        
+                target_deriv,
+                propagator_deriv):
+        print("!")
         target_deriv_node = tn.Node(target_deriv)
         propagator_deriv_node = tn.Node(propagator_deriv)
 
         identity = np.identity(process_tensor.hilbert_space_dimension**2)
         identity_node = tn.Node(identity)
-            
+
 
         target_deriv_node[0] ^ propagator_deriv_node[0]
         target_deriv_node[1] ^ propagator_deriv_node[1]
@@ -505,6 +505,7 @@ def _chain_rule_amended(deriv_list: List[ndarray],
         final_node = target_deriv_node @ propagator_deriv_node 
 
         tensor = final_node.tensor
+        print(tensor)
         return tensor
 
     for i in range(dprop_times_list.size):
@@ -515,9 +516,7 @@ def _chain_rule_amended(deriv_list: List[ndarray],
         post_prop=False
         pre_post_decider=False
 
-        print(dtarget_index)
-        print(deriv_list[dtarget_index])
-        print(dprop_dparam_list[1])
+        print(len(deriv_list[dtarget_index]))
 
         total_derivs[i] = combine_derivs(
                         deriv_list[dtarget_index],

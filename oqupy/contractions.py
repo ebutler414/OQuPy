@@ -812,13 +812,12 @@ def compute_gradient_and_dynamics_amended(
         # note now backprop_deriv_list is unnecessary
     
     mpo_tensor=pt_mpos_list[num_steps-1]
-    temp_edges = forwardprop_tensor[:]
-    print(np.shape(forwardprop_tensor),",",np.shape(mpo_tensor),",",np.shape(backprop_tensor))
-    forwardprop_tensor, temp_edges = _apply_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
 
+    for mpo in mpo_tensor:
+        forwardprop_tensor[0] ^ mpo[0]
+        forwardprop_tensor = forwardprop_tensor @ mpo
 
-    for i in range(num_envs):
-        forwardprop_tensor[i] ^ backprop_tensor[i]
+    forwardprop_tensor[1] ^ backprop_tensor[0]
 
     deriv = forwardprop_tensor @ backprop_tensor
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
