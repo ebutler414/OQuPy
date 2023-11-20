@@ -702,11 +702,11 @@ def compute_gradient_and_dynamics_amended(
     forwardprop_deriv_list = []
     forwardprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
 
-    # only need to forward propagate n-2 steps as we already have initial state + we are inserting mpo later
+    # only need to forward propagate n-1 steps as we already have initial state + we are inserting mpo later
     for step in range(num_steps-1): 
         # -- apply pre measurement control --
         pre_measurement_control, post_measurement_control = controls(step)
-
+ 
         if pre_measurement_control is not None:
             current_node, current_edges = _apply_system_superoperator(
                 current_node, current_edges, pre_measurement_control)
@@ -730,12 +730,14 @@ def compute_gradient_and_dynamics_amended(
 
         # -- propagate one time step --
         first_half_prop, second_half_prop = propagators(step)
+
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
         for pt_mpo in pt_mpos:
             pt_mpo_node = tn.Node(pt_mpo) 
-            
-        pt_mpos_list.append(tn.replicate_nodes([pt_mpo_node])) # do i need to 'replicate' here?
+
+        # save mpo tensor for this step    
+        pt_mpos_list.append(tn.replicate_nodes([pt_mpo_node])) 
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, first_half_prop)
@@ -792,8 +794,6 @@ def compute_gradient_and_dynamics_amended(
     current_node = tn.Node(np.outer(final_cap,target_ndarray)) # might be a wire crossed or something
     current_edges = current_node[:]
 
-    current_node
-
     combined_deriv_list = []
 
     if get_forward_and_backprop_list:
@@ -808,12 +808,14 @@ def compute_gradient_and_dynamics_amended(
         # forwardprop tensor to save memory
         del forwardprop_deriv_list[num_steps-1]
         backprop_tensor = tn.replicate_nodes([current_node])[0]
+        backprop_deriv_list = [tn.replicate_nodes([current_node])[0]]
         # note now backprop_deriv_list is unnecessary
     
     mpo_tensor=pt_mpos_list[num_steps-1]
     temp_edges = forwardprop_tensor[:]
     print(np.shape(forwardprop_tensor),",",np.shape(mpo_tensor),",",np.shape(backprop_tensor))
     forwardprop_tensor, temp_edges = _apply_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
+
 
     for i in range(num_envs):
         forwardprop_tensor[i] ^ backprop_tensor[i]
@@ -866,7 +868,6 @@ def compute_gradient_and_dynamics_amended(
         first_half_prop, second_half_prop = propagators(step)
         pt_mpos = _get_pt_mpos_backprop(process_tensors, step)
         
-        print(np.shape(pt_mpos))
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop.T)
         current_node, current_edges = _apply_pt_mpos(
@@ -891,17 +892,18 @@ def compute_gradient_and_dynamics_amended(
             backprop_tensor =  tn.replicate_nodes([current_node])[0]
 
         mpo_tensor = pt_mpos_list[step-1]
-        temp_edges = backprop_tensor[:]
-        backprop_tensor, temp_edges = _apply_pt_mpos(backprop_tensor,temp_edges,mpo_tensor)
+        temp_edges = forwardprop_tensor[:]
 
-        print(np.shape(forwardprop_tensor),",",np.shape(mpo_tensor),",",np.shape(backprop_tensor))
+        forwardprop_tensor, temp_edges = _apply_derivative_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
+
+
+        forwardprop_tensor[1] ^ backprop_tensor[0]
+
         deriv = forwardprop_tensor @ backprop_tensor
         combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
 
-        for i in range(num_envs):
-            forwardprop_tensor[i] ^ backprop_tensor[i]
 
-        
+
     # deriv_list is currently in the reversed order from what you'd expect, so
     # reversing the order of the list.....
 
@@ -1400,6 +1402,23 @@ def _apply_pt_mpos(current_node, current_edges, pt_mpos):
         current_edges[i] = new_bond_edge
         current_edges[-1] = new_sys_edge
     return current_node, current_edges
+
+def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
+
+    for i,pt_mpo in enumerate(pt_mpos):
+        if pt_mpo is None:
+            continue
+
+        pt_mpo_node=tn.Node(pt_mpo)
+        new_bond_edge=pt_mpo_node[1]
+        new_sys_edge = pt_mpo_node[3]
+        current_edges[i] ^ pt_mpo_node[0]
+        # don't perform contraction over system edges
+        current_node = current_node @ pt_mpo_node
+        current_edges[i] = new_bond_edge
+        current_edges[-1] = new_sys_edge
+        
+    return current_node,current_edges
 
 
 

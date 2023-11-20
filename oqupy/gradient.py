@@ -31,14 +31,16 @@ from oqupy.dynamics import GradientDynamics
 from oqupy.process_tensor import BaseProcessTensor
 from oqupy.system import System, TimeDependentSystem
 from oqupy.contractions import _compute_dynamics_input_parse
-from oqupy.contractions import compute_gradient_and_dynamics_amended
+from oqupy.contractions import compute_gradient_and_dynamics_amended # new version
+from oqupy.contractions import compute_gradient_and_dynamics # old version
 from oqupy.helpers import get_half_timesteps,get_MPO_times
 from oqupy.helpers import get_propagator_intervals
+
 
 # note for those reading. The arguments for the gradient function are basically
 # stolen from the compute_dynamics function in contractions.py, see notes below
 # because some of them are prob no longer optional.
-def gradient(
+def gradient_old(
         system: Union[System, TimeDependentSystem],
         gradient_dynamics: Optional[GradientDynamics] = None,
         initial_state: Optional[ndarray] = None, # why is this optional, this is def needed
@@ -130,7 +132,7 @@ def gradient(
             process_tensors, control, record_all, hs_dim = parsed_parameters
 
 
-        gradient_dynamics = compute_gradient_and_dynamics_amended(
+        gradient_dynamics = compute_gradient_and_dynamics(
                         system=system,
                         initial_state=initial_state,
                         target_state=target_state,
@@ -165,6 +167,7 @@ def gradient(
 
 def _chain_rule(deriv_list: List[ndarray],
             dprop_dparam_list: List[ndarray],
+            # dprop_dparam_indices = List[int],
             dprop_times_list: ndarray,
             start_time,
             process_tensor: BaseProcessTensor,
@@ -233,7 +236,9 @@ def _chain_rule(deriv_list: List[ndarray],
                 pre_post_decider:bool):
         target_deriv_node = tn.Node(target_deriv)
         propagator_deriv_node = tn.Node(propagator_deriv)
-        """""
+        # in the following: when a pre or post is chosen, then the post / pre
+        # that is not used is simply discarded
+
         # deriv is a post node -> extra node needed is a pre
         if pre_post_decider:
             extra_prop_node = tn.Node(pre)
@@ -246,16 +251,15 @@ def _chain_rule(deriv_list: List[ndarray],
             extra_prop_node = tn.Node(post)
             target_deriv_node[0] ^ propagator_deriv_node[0]
             target_deriv_node[1] ^ extra_prop_node[0]
-            extra_prop_node[1] ^ propagator_deriv_node[1]"""
+            extra_prop_node[1] ^ propagator_deriv_node[1]
 
-        final_node = target_deriv_node @ propagator_deriv_node #\
-            #@ extra_prop_node
+        final_node = target_deriv_node @ propagator_deriv_node \
+            @ extra_prop_node
 
         tensor = final_node.tensor
         return tensor
 
     for i in range(dprop_times_list.size):
-        """""
         # find the propagator index as used in contractions
         prop_index = dprop_timestep_index[i] // 2
         # decide whether it's a pre or post node
@@ -263,24 +267,26 @@ def _chain_rule(deriv_list: List[ndarray],
         # it is created so shouldn't need to check again
         # 0/False -> Pre node, 1/True -> Post node
         pre_post_decider = dprop_timestep_index[i] % 2
-        pre_prop,post_prop = propagators(prop_index)
 
         # if first or last timestep, do not include the extra propagator in
         # diagram as they are special cases where there was no propagator
         # omitted during the forward and backprop. Cleanest way to implement
         # this IMO is to set the extra propagator to the identity
-        if dprop_times_list[i] == 0 or dprop_times_list[i] \
+        if dprop_timestep_index[i] == 0 or dprop_timestep_index[i] \
                 ==  dprop_times_list.size-1:
             pre_prop = np.identity(process_tensor.hilbert_space_dimension**2)
             post_prop = np.identity(process_tensor.hilbert_space_dimension**2)
-    """
+
+        # post node -> extra node needed comes from previous step
+        elif pre_post_decider:
+            pre_prop,post_prop = propagators(prop_index+1)
+        # pre node -> extra node needed comes from following step
+        else:
+            pre_prop,post_prop = propagators(prop_index-1)
+
         dtarget_index = int(MPO_index_function(dprop_times_list[i]))
 
-    pre_prop=False
-    post_prop=False
-    pre_post_decider=False
-
-    total_derivs[i] = combine_derivs(
+        total_derivs[i] = combine_derivs(
                     deriv_list[dtarget_index],
                     dprop_dparam_list[i],
                     pre_prop,
@@ -289,10 +295,11 @@ def _chain_rule(deriv_list: List[ndarray],
 
     return total_derivs
 
+
 # note for those reading. The arguments for the gradient function are basically
 # stolen from the compute_dynamics function in contractions.py, see notes below
 # because some of them are prob no longer optional.
-def gradient_amended(
+def gradient(
         system: Union[System, TimeDependentSystem],
         gradient_dynamics: Optional[GradientDynamics] = None,
         initial_state: Optional[ndarray] = None, # why is this optional, this is def needed
@@ -410,7 +417,7 @@ def gradient_amended(
                     dprop_times_list,
                     start_time,
                     process_tensor,
-                    system, 
+                    system,
                     (subdiv_limit,liouvillian_epsrel))
         gradient_dynamics.total_derivs = total_derivs
     return gradient_dynamics
@@ -439,7 +446,7 @@ def _chain_rule_amended(deriv_list: List[ndarray],
 
     MPO_times = get_MPO_times(process_tensor,start_time,inc_endtime=True)
     MPO_times = np.concatenate((np.array([0.0]),MPO_times))
-    MPO_indices = np.arange(0,MPO_times.size)
+    MPO_indices = np.arange(0,MPO_times.size) # i'm not sure this is right??
     # this is more of an internal check than anything, if the code is written
     # correctly this should always be true.
     # assert indices.size == len(deriv_list), \
@@ -488,38 +495,37 @@ def _chain_rule_amended(deriv_list: List[ndarray],
         target_deriv_node = tn.Node(target_deriv)
         propagator_deriv_node = tn.Node(propagator_deriv)
 
-        final_node = target_deriv_node @ propagator_deriv_node \
+        identity = np.identity(process_tensor.hilbert_space_dimension**2)
+        identity_node = tn.Node(identity)
+        print("xxx")
+        for i,edge in enumerate(target_deriv_node):
+            print(i)
+            print(edge)
+            
+
+        target_deriv_node[1] ^ propagator_deriv_node[0]
+        target_deriv_node[0] ^ propagator_deriv_node[1]
+        #target_deriv_node[2] ^ identity_node[0] nope! why?
+
+        final_node = target_deriv_node @ propagator_deriv_node 
 
         tensor = final_node.tensor
         return tensor
 
-    for i in range(dprop_times_list.size):
-        # find the propagator index as used in contractions
-        prop_index = dprop_timestep_index[i] // 2
-        # decide whether it's a pre or post node
-        # assuming dprop_times_list is int because it is converted to int after
-        # it is created so shouldn't need to check again
-        # 0/False -> Pre node, 1/True -> Post node
-        pre_post_decider = dprop_timestep_index[i] % 2
-        pre_prop,post_prop = propagators(prop_index)
-
-        # if first or last timestep, do not include the extra propagator in
-        # diagram as they are special cases where there was no propagator
-        # omitted during the forward and backprop. Cleanest way to implement
-        # this IMO is to set the extra propagator to the identity
-        if dprop_times_list[i] == 0 or dprop_times_list[i] \
-                ==  dprop_times_list.size-1:
-            pre_prop = np.identity(process_tensor.hilbert_space_dimension**2)
-            post_prop = np.identity(process_tensor.hilbert_space_dimension**2)
+    for i in range(len(dprop_dparam_list)-1):
 
         dtarget_index = int(MPO_index_function(dprop_times_list[i]))
 
+        pre_prop=False
+        post_prop=False
+        pre_post_decider=False
+
         total_derivs[i] = combine_derivs(
-                    deriv_list[dtarget_index],
-                    dprop_dparam_list[i],
-                    pre_prop,
-                    post_prop,
-                    pre_post_decider)
+                        deriv_list[dtarget_index],
+                        dprop_dparam_list[i],
+                        pre_prop,
+                        post_prop,
+                        pre_post_decider)
 
     return total_derivs
 
