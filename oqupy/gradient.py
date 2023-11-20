@@ -488,31 +488,26 @@ def _chain_rule_amended(deriv_list: List[ndarray],
 
     def combine_derivs(
                 target_deriv:ndarray,
-                propagator_deriv:ndarray,
-                pre:ndarray,
-                post:ndarray,
-                pre_post_decider:bool):
+                propagator_deriv:ndarray):
+        
         target_deriv_node = tn.Node(target_deriv)
         propagator_deriv_node = tn.Node(propagator_deriv)
 
         identity = np.identity(process_tensor.hilbert_space_dimension**2)
         identity_node = tn.Node(identity)
-        print("xxx")
-        for i,edge in enumerate(target_deriv_node):
-            print(i)
-            print(edge)
             
 
-        target_deriv_node[1] ^ propagator_deriv_node[0]
-        target_deriv_node[0] ^ propagator_deriv_node[1]
-        #target_deriv_node[2] ^ identity_node[0] nope! why?
+        target_deriv_node[0] ^ propagator_deriv_node[0]
+        target_deriv_node[1] ^ propagator_deriv_node[1]
+        target_deriv_node[2] ^ identity_node[0] 
+        target_deriv_node[3] ^ identity_node[1] 
 
         final_node = target_deriv_node @ propagator_deriv_node 
 
         tensor = final_node.tensor
         return tensor
 
-    for i in range(len(dprop_dparam_list)-1):
+    for i in range(dprop_times_list.size):
 
         dtarget_index = int(MPO_index_function(dprop_times_list[i]))
 
@@ -520,12 +515,13 @@ def _chain_rule_amended(deriv_list: List[ndarray],
         post_prop=False
         pre_post_decider=False
 
+        print(dtarget_index)
+        print(deriv_list[dtarget_index])
+        print(dprop_dparam_list[1])
+
         total_derivs[i] = combine_derivs(
                         deriv_list[dtarget_index],
-                        dprop_dparam_list[i],
-                        pre_prop,
-                        post_prop,
-                        pre_post_decider)
+                        dprop_dparam_list[i])
 
     return total_derivs
 

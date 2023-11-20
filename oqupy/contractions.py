@@ -893,16 +893,21 @@ def compute_gradient_and_dynamics_amended(
 
         mpo_tensor = pt_mpos_list[step-1]
         temp_edges = forwardprop_tensor[:]
+        forwardprop_tensor,temp_edges = _apply_derivative_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
 
-        forwardprop_tensor, temp_edges = _apply_derivative_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
-
-
-        forwardprop_tensor[1] ^ backprop_tensor[0]
+        forwardprop_tensor[1] ^ backprop_tensor[0] # refer to diagrams under mpo construction to understand indices
+        # may make sense to change labelling of edges so backprop and forwardprop align?
 
         deriv = forwardprop_tensor @ backprop_tensor
+
+        """" display edges and index
+        print("step: ", step)
+        for i,edge in enumerate(deriv):
+            print("name:",edge.name,"  index: ",i)
+        """
+
+
         combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
-
-
 
     # deriv_list is currently in the reversed order from what you'd expect, so
     # reversing the order of the list.....
@@ -1403,20 +1408,73 @@ def _apply_pt_mpos(current_node, current_edges, pt_mpos):
         current_edges[-1] = new_sys_edge
     return current_node, current_edges
 
-def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
 
+def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
+    """
+    derivates not applied the same way as in forwardprop. Need to leave bond edge aswell as 
+        three system edges open:
+
+        before mpo application:
+            [1]
+            |        [3]
+            |        /
+        |---------| /
+        |         |/
+        |         |\       
+        |---------| \        
+            |        \     
+            |        [2]
+            [0]
+
+            [i]
+            |
+            |        [-1]   
+            |          |       
+                       |
+
+        after mpo application:
+            [1]
+            |         [3] postprop_edge
+            |        /
+        |---------| /
+        |         |/
+        |         |\       
+        |---------| \         
+            |        \        
+            |         [2] preprop_mpo_edge
+            |
+            |
+            |
+            |        [0] postprop__preprop_edge
+            |         |       
+                      | 
+    """
     for i,pt_mpo in enumerate(pt_mpos):
         if pt_mpo is None:
             continue
 
         pt_mpo_node=tn.Node(pt_mpo)
+
         new_bond_edge=pt_mpo_node[1]
-        new_sys_edge = pt_mpo_node[3]
+        postprop_edge = pt_mpo_node[3]
+        preprop_mpo_edge = pt_mpo_node[2]
+        postprop_prepop_edge = current_edges[-1]
+
+        new_bond_edge.name="bond edge"
+        postprop_edge.name = "post prop edge"
+        preprop_mpo_edge.name = "preprop-mpo edge"
+        postprop_prepop_edge.name = "postprop-prepop edge"
+
         current_edges[i] ^ pt_mpo_node[0]
         # don't perform contraction over system edges
+
         current_node = current_node @ pt_mpo_node
-        current_edges[i] = new_bond_edge
-        current_edges[-1] = new_sys_edge
+        current_edges = current_node[:]
+        current_edges[1] = new_bond_edge
+        current_edges[3] = postprop_edge
+        current_edges[2]=preprop_mpo_edge
+   
+        # pre-prop edge unchanged current_edges[-1] = post_prop_edge
         
     return current_node,current_edges
 
