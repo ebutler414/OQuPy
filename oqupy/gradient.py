@@ -35,6 +35,8 @@ from oqupy.contractions import compute_gradient_and_dynamics_amended # new versi
 from oqupy.contractions import compute_gradient_and_dynamics # old version
 from oqupy.helpers import get_half_timesteps,get_MPO_times
 from oqupy.helpers import get_propagator_intervals
+from oqupy.helpers import get_full_timesteps
+
 
 
 # note for those reading. The arguments for the gradient function are basically
@@ -453,7 +455,7 @@ def _chain_rule_amended(deriv_list: List[ndarray],
     #         'indices mismatched with deriv_list times'
     MPO_index_function = interp1d(MPO_times,MPO_indices,kind='zero')
 
-    half_timestep_times = get_propagator_intervals(process_tensor,start_time)
+    half_timestep_times = get_half_timesteps(process_tensor,start_time)
     half_timestep_indices = np.arange(0,half_timestep_times.size)
 
     half_timestep_index_function = interp1d(half_timestep_times,
@@ -478,13 +480,7 @@ def _chain_rule_amended(deriv_list: List[ndarray],
             'within oqupy.gradient.py or change rtol in np.allclose()' )
     # ~~~~~~~~~~ end cut ~~~~~~~~~
 
-    total_derivs = np.zeros(dprop_times_list.size,dtype='complex128')
-
-    propagators = system.get_propagators(
-                    process_tensor.dt,
-                    start_time,
-                    system_params[0],
-                    system_params[1])
+    total_derivs = np.zeros(len(deriv_list),dtype='complex128')
 
     def combine_derivs(
                 target_deriv,
@@ -496,25 +492,21 @@ def _chain_rule_amended(deriv_list: List[ndarray],
         identity = np.identity(process_tensor.hilbert_space_dimension**2)
         identity_node = tn.Node(identity)
 
-
         target_deriv_node[0] ^ propagator_deriv_node[0]
         target_deriv_node[1] ^ propagator_deriv_node[1]
         target_deriv_node[2] ^ identity_node[0] 
         target_deriv_node[3] ^ identity_node[1] 
 
         final_node = target_deriv_node @ propagator_deriv_node 
+        final_node = final_node@ identity_node
 
         tensor = final_node.tensor
         print(tensor)
         return tensor
 
-    for i in range(dprop_times_list.size):
-
+    for i in range(len(deriv_list)):
+        print(len(deriv_list))
         dtarget_index = int(MPO_index_function(dprop_times_list[i]))
-
-        pre_prop=False
-        post_prop=False
-        pre_post_decider=False
 
         print(len(deriv_list[dtarget_index]))
 
