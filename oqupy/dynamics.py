@@ -323,6 +323,7 @@ class GradientDynamics(Dynamics):
             deriv_list: Optional[List[ndarray]] = None,
             backprop_deriv_list: Optional[List[ndarray]] = None,
             forwardprop_deriv_list: Optional[List[ndarray]] = None,
+            mpo_list: Optional[List[ndarray]]=None,
             total_derivs: Optional[ndarray] = None,
             name: Optional[Text] = None,
             description: Optional[Text] = None) -> None:

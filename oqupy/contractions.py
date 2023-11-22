@@ -473,7 +473,7 @@ def compute_gradient_and_dynamics(
 
     return GradientDynamics(times=list(times),
             states=states,
-            forwardprop_deriv_list=forwardprop_deriv_list,
+            forwardprop_deriv_list=forwardprop_deriv_list, 
             backprop_deriv_list=backprop_deriv_list,
             deriv_list=deriv_list_reversed)
 
@@ -822,6 +822,7 @@ def compute_gradient_and_dynamics_amended(
     forward_extended_list=[]
 
 
+
     # note it prob makes sense to delete the plus one here, which would remove
     # the -1s in the indices inside the for loop. Might screw up the final pre
     # node for the Nth step, because if this +1 was here then the final pre node
@@ -892,7 +893,7 @@ def compute_gradient_and_dynamics_amended(
         mpo_tensor = pt_mpos_list[step-1]
         temp_edges = forwardprop_tensor[:]
         forwardprop_tensor,temp_edges = _apply_derivative_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
-        forward_extended_list.append(tn.replicate_nodes(forwardprop_tensor))
+
         forwardprop_tensor[1] ^ backprop_tensor[0] # refer to diagrams under mpo construction to understand indices
         # may make sense to change labelling of edges so backprop and forwardprop align?
 
@@ -918,7 +919,7 @@ def compute_gradient_and_dynamics_amended(
 
     return GradientDynamics(times=list(times),
             states=states,
-            forwardprop_extended_list=forward_extended_list,
+            forwardprop_deriv_list=forward_extended_list,
             backprop_deriv_list=backprop_deriv_list,
             deriv_list=deriv_list_reversed,
             mpo_list=pt_mpos_list)

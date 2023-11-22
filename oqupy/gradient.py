@@ -35,7 +35,7 @@ from oqupy.contractions import compute_gradient_and_dynamics_amended # new versi
 from oqupy.contractions import compute_gradient_and_dynamics # old version
 from oqupy.helpers import get_half_timesteps,get_MPO_times
 from oqupy.helpers import get_propagator_intervals
-from oqupy.helpers import get_full_timesteps
+
 
 
 
@@ -446,15 +446,6 @@ def _chain_rule_amended(deriv_list: List[ndarray],
             ('dprop_dpram_list must be the same length as the number of time '
             'slices')
 
-    MPO_times = get_MPO_times(process_tensor,start_time,inc_endtime=True)
-    MPO_times = np.concatenate((np.array([0.0]),MPO_times))
-    MPO_indices = np.arange(0,MPO_times.size) # i'm not sure this is right??
-    # this is more of an internal check than anything, if the code is written
-    # correctly this should always be true.
-    # assert indices.size == len(deriv_list), \
-    #         'indices mismatched with deriv_list times'
-    MPO_index_function = interp1d(MPO_times,MPO_indices,kind='zero')
-
     half_timestep_times = get_half_timesteps(process_tensor,start_time)
     half_timestep_indices = np.arange(0,half_timestep_times.size)
 
@@ -470,6 +461,12 @@ def _chain_rule_amended(deriv_list: List[ndarray],
     # ~~~~~~~~~ cut here ~~~~~~~~~
     oqupy_half_timestep_times = get_half_timesteps(
             process_tensor,start_time=start_time)
+    
+    propagators = system.get_propagators(
+                    process_tensor.dt,
+                    start_time,
+                    system_params[0],
+                    system_params[1])
 
     proposed_dprop_times = oqupy_half_timestep_times[dprop_timestep_index]
 
@@ -480,39 +477,45 @@ def _chain_rule_amended(deriv_list: List[ndarray],
             'within oqupy.gradient.py or change rtol in np.allclose()' )
     # ~~~~~~~~~~ end cut ~~~~~~~~~
 
-    total_derivs = np.zeros(len(deriv_list),dtype='complex128')
+    total_derivs = np.zeros(half_timestep_indices.size,dtype='complex128')
 
     def combine_derivs(
                 target_deriv,
-                propagator_deriv):
-        print("!")
+                pre_prop,
+                post_prop):
+ 
         target_deriv_node = tn.Node(target_deriv)
-        propagator_deriv_node = tn.Node(propagator_deriv)
+        pre_node=tn.Node(pre_prop)
+        post_node=tn.Node(post_prop)
 
-        identity = np.identity(process_tensor.hilbert_space_dimension**2)
-        identity_node = tn.Node(identity)
+        target_deriv_node[0] ^ pre_node[0]
+        target_deriv_node[1] ^ pre_node[1]
+        target_deriv_node[2] ^ post_node[0] 
+        target_deriv_node[3] ^ post_node[1] 
 
-        target_deriv_node[0] ^ propagator_deriv_node[0]
-        target_deriv_node[1] ^ propagator_deriv_node[1]
-        target_deriv_node[2] ^ identity_node[0] 
-        target_deriv_node[3] ^ identity_node[1] 
-
-        final_node = target_deriv_node @ propagator_deriv_node 
-        final_node = final_node@ identity_node
+        final_node = target_deriv_node @ pre_node \
+                        @ post_node
 
         tensor = final_node.tensor
-        print(tensor)
+
         return tensor
 
-    for i in range(len(deriv_list)):
-        print(len(deriv_list))
-        dtarget_index = int(MPO_index_function(dprop_times_list[i]))
+    for i in range(0,half_timestep_times.size-1,1): # populating two elements each step
 
-        print(len(deriv_list[dtarget_index]))
+        #dtarget_index = int(MPO_index_function(dprop_times_list[i]))
+
+        first_half_prop,second_half_prop=propagators(i//2)
+        first_half_prop_deriv = dprop_dparam_list[i]
+        second_half_prop_deriv = dprop_dparam_list[i+1]
 
         total_derivs[i] = combine_derivs(
-                        deriv_list[dtarget_index],
-                        dprop_dparam_list[i])
+                        deriv_list[i//2],
+                        first_half_prop,
+                        second_half_prop_deriv)
+        total_derivs[i+1] = combine_derivs(
+                        deriv_list[i//2],
+                        first_half_prop_deriv,
+                        second_half_prop)
 
     return total_derivs
 
