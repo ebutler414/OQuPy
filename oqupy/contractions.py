@@ -393,7 +393,7 @@ def compute_gradient_and_dynamics(
     # the -1s in the indices inside the for loop. Might screw up the final pre
     # node for the Nth step, because if this +1 was here then the final pre node
     # would be -1. this might be a symptom of a bug, TODO: Investigate.
-    for step in reversed(range(1,num_steps+1)):
+    for step in reversed(range(1,num_steps)):
         # -- now the backpropagation part --
 
         # -- apply pre measurement control --
@@ -428,9 +428,6 @@ def compute_gradient_and_dynamics(
         current_node, current_edges = _apply_pt_mpos(
             current_node, current_edges, pt_mpos)
 
-        # appropriate timeslice in diagram is here
-        # # store derivative node
-
         forwardprop_tensor = forwardprop_deriv_list[step-1]
 
         if get_forward_and_backprop_list:
@@ -438,7 +435,8 @@ def compute_gradient_and_dynamics(
             backprop_tensor = tn.replicate_nodes([current_node])[0]
         else:
             # test:
-            if len(forwardprop_deriv_list)-1 != step-1:
+
+            if len(forwardprop_deriv_list)-1 != step:
                 raise IndexError('These should be equal')
 
             # if we're not keeping the full list, we can delete the
@@ -587,17 +585,18 @@ def compute_hessian(
         
     for i,back_prop_state in enumerate(reversed(back_prop_list)):
         for j,extended_state in extended_state_matrix.T[i]:
-            current_node=tn.Node(extended_state)
-            current_edges = current_node[:]
+            extended_state=tn.Node(extended_state)
+
             backprop_tensor=tn.Node(back_prop_state)
             mpo=tn.Node(backprop_mpos[i])
+
+            current_edges[0] ^ mpo[0]
+            mpo[1] ^ backprop_tensor[1]
+
+            hess = current_node @ mpo @ backprop_tensor
+
+            hessian_matrix[i][j] = hess
     
-    # need to think about how to add up edges 
-            current_edges[]
-
-
-
-
     return hessian_matrix
 
 def compute_gradient_and_dynamics_amended(
@@ -824,6 +823,10 @@ def compute_gradient_and_dynamics_amended(
         forwardprop_tensor = forwardprop_tensor @ mpo
 
     forwardprop_tensor[1] ^ backprop_tensor[0]
+    print("")
+    print(forwardprop_tensor[1].dimension)
+    print(backprop_tensor[0].dimension)
+    print("")
 
     deriv = forwardprop_tensor @ backprop_tensor
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)

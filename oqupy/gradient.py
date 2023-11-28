@@ -125,6 +125,7 @@ def gradient_old(
         (accounting for the interaction with the environment), and the
         derivative of the objective function with respect to the specified
     """
+    
     if gradient_dynamics is None:
         # -- input parsing --
         parsed_parameters = _compute_dynamics_input_parse(
