@@ -404,7 +404,7 @@ def gradient(
                         process_tensor=process_tensors,
                         control=control,
                         record_all=record_all,
-                        get_forward_and_backprop_list=get_forward_backprop_list,
+                        get_forward_and_backprop_list=True,
                         subdiv_limit=subdiv_limit,
                         liouvillian_epsrel=liouvillian_epsrel,
                         progress_type=progress_type)
@@ -422,6 +422,7 @@ def gradient(
                     process_tensor,
                     system,
                     (subdiv_limit,liouvillian_epsrel))
+        print(gradient_dynamics.forwardprop_deriv_list)
         gradient_dynamics.total_derivs = total_derivs
     return gradient_dynamics
 
@@ -501,7 +502,7 @@ def _chain_rule_amended(deriv_list: List[ndarray],
 
         return tensor
 
-    for i in range(0,half_timestep_times.size-1,1): # populating two elements each step
+    for i in range(0,half_timestep_times.size-1,2): # populating two elements each step
 
         #dtarget_index = int(MPO_index_function(dprop_times_list[i]))
 
@@ -520,3 +521,58 @@ def _chain_rule_amended(deriv_list: List[ndarray],
 
     return total_derivs
 
+def hessian(
+        system: Union[System, TimeDependentSystem],
+        gradient_dynamics: Optional[GradientDynamics] = None,
+        initial_state: Optional[ndarray] = None, # why is this optional, this is def needed
+        target_state: Optional[ndarray] = None, # same again
+        dprop_dparam_list: Optional[List[ndarray]] = None,
+        dprop_times_list: Optional[ndarray] = None,# this one is actually optional (well debatably)
+        dt: Optional[float] = None,
+        num_steps: Optional[int] = None,
+        start_time: Optional[float] = 0.0,
+        process_tensor: Optional[Union[List[BaseProcessTensor],
+                                       BaseProcessTensor]] = None,
+        control: Optional[Control] = None,
+        get_forward_backprop_list: Optional[bool] = False,
+        record_all: Optional[bool] = True,
+        subdiv_limit: Optional[int] = SUBDIV_LIMIT,
+        liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
+        progress_type: Optional[Text] = None) -> GradientDynamics:
+    
+    half_timestep_times = get_half_timesteps(process_tensor,start_time)
+    
+    hessian_dynamics=[]
+
+    def combine_second_derivs(
+            target_hess,
+            pre_prop_1,
+            post_prop_1,
+            pre_prop_2,
+            post_prop_2
+    ):
+        pre_node_1 = tn.Node(pre_prop_1)
+        post_node_1 = tn.Node(post_prop_1)
+        pre_node_2 = tn.Node(pre_prop_2)
+        post_node_2 = tn.Node(post_prop_2)
+
+        target_hess_node = tn.Node(target_hess)
+
+        target_hess_node[0] ^ pre_node_1[0]
+        target_hess_node[1] ^ pre_node_1[1]
+        target_hess_node[2] ^ post_node_1[0] 
+        target_hess_node[3] ^ post_node_1[1] 
+
+        target_hess_node[4] ^ pre_node_2[0]
+        target_hess_node[5] ^ pre_node_2[1]
+        target_hess_node[6] ^ post_node_2[0] 
+        target_hess_node[7] ^ post_node_2[1] 
+
+        final_node = target_hess_node @ pre_node_1 @ post_node_1 \
+                    @ pre_node_2 @ post_node_2
+
+        tensor = final_node.tensor
+
+        return tensor
+
+    return hessian_dynamics
