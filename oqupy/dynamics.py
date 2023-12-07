@@ -324,7 +324,6 @@ class GradientDynamics(Dynamics):
             backprop_deriv_list: Optional[List[ndarray]] = None,
             forwardprop_deriv_list: Optional[List[ndarray]] = None,
             mpo_list: Optional[List[ndarray]]=None,
-            backprop_mpo_list: Optional[List[ndarray]]=None,
             total_derivs: Optional[ndarray] = None,
             name: Optional[Text] = None,
             description: Optional[Text] = None) -> None:
@@ -333,6 +332,7 @@ class GradientDynamics(Dynamics):
         self._forwardprop_deriv_list = forwardprop_deriv_list
         self._backprop_deriv_list = backprop_deriv_list
         self._deriv_list = deriv_list
+        self._mpo_list = mpo_list
         self._total_derivs = total_derivs
         for time, state in zip(times, states):
             self.add(time, state)
@@ -348,6 +348,9 @@ class GradientDynamics(Dynamics):
     @property
     def deriv_list(self):
         return self._deriv_list
+    @property
+    def mpo_list(self):
+        return self._mpo_list
 
     @property
     def total_derivs(self):
