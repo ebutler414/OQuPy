@@ -27,23 +27,31 @@ from oqupy.system import ParametrizedSystem
 def fidelity_gradient(
         system: ParametrizedSystem,
         initial_state: ndarray,
-        target_state: ndarray,
+        target_state: ndarray | Callable[ndarray,ndarray], 
         process_tensor: BaseProcessTensor,
         parameters: Tuple[List],
         time_steps: Optional[ndarray] = None,
-        return_fidelity: Optional[bool] = True,
-        return_dynamics: Optional[bool] = False) -> Dict:
+        #        return_fidelity: Optional[bool] = True, Always return final state
+        return_dynamics: Optional[bool] = False,
+        return_gradprop: Optional[bool] = False,
+        return_gradparam: Optional[bool] = False
+        ) -> Dict:
     """
     ToDo:
     the return dictionary has the fields:
-      'gradient' : a tuple of list of floats
+      'final state' : the final state after evolving the initital state
+      'gradprop' : derivatives of z with respect to half-step propagators  
+      'gradient' : derivatives of z with respect to parameters
+                   a tuple list of floats (PE query - performance overhead?)
                    ['gradient'][i][n] ... is the derivative with respect to
                                           the i-th parameter at the n-th
                                           half-time step.
-      'fidelity' : float (optional)
-      'dynamics' : a Dynamics object (optional)
+      'dynamics' : a Dynamics object (optional) 
 
     """
+
+
+    # compute propagator list and pass this to forward_backward_propagation, 
 
     fb_prop_result = forward_backward_propagation(
         system,
