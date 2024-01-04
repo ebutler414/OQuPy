@@ -5,14 +5,15 @@ process duration using the adjoint method
 
 import numpy as np
 import oqupy
-from oqupy.process_tensor import BaseProcessTensor
-import matplotlib.pyplot as plt
+# from oqupy.process_tensor import BaseProcessTensor
+# import matplotlib.pyplot as plt
 from oqupy.helpers import get_full_timesteps,get_half_timesteps
 from scipy.linalg import expm
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize, Bounds
-import matplotlib.pyplot as plt
-import sys
+# import matplotlib.pyplot as plt
+# import sys
+from time import time
 
 initial_state = oqupy.operators.spin_dm('x-')
 target_state = oqupy.operators.spin_dm('x+')
@@ -29,10 +30,11 @@ if process_tensor_type == 'default':
     # 5ps pt, super-ohmic sd. dt=0.05,dkmax=60,epsrel=10^-7
     process_tensor = oqupy.import_process_tensor(
                 'optimisation_pt.processTensor','simple')
+    print(process_tensor.get_bond_dimensions())
 
 half_timestep_times = get_half_timesteps(process_tensor,0)
 
-def get_hamiltonian(hx:np.ndarray,hz:np.ndarray,pt:BaseProcessTensor):
+def get_hamiltonian(hx:np.ndarray,hz:np.ndarray,pt):
     """
     Returns a callable which takes a single parameter, t, and returns the
     hamiltonian of the two level system at that time. This function takes a
@@ -92,7 +94,8 @@ def sum_adjacent_elements(array:np.ndarray)-> np.ndarray:
     # maybe this goes in helpers.py or utils.py?
     half_the_size = array.size / 2
     assert (half_the_size).is_integer(), \
-        'if one output from both pre and post node is given, result must be even'
+        ('if one output from both pre and post node is given, result must be'
+         ' even')
     half_the_size = int(half_the_size)
 
     # https://stackoverflow.com/a/29392016
@@ -101,22 +104,29 @@ def sum_adjacent_elements(array:np.ndarray)-> np.ndarray:
 
 def cost_function(control_parameters,
                   pt):
+    
     hamiltonian_t = get_hamiltonian(
                                     hx=control_parameters[:len(pt)], # first half is sigma x
                                     hz=control_parameters[len(pt):], # second half is sigma z
                                     pt=pt)
     system = oqupy.TimeDependentSystem(hamiltonian_t)
+    time1 = time()
     dynamics = oqupy.compute_dynamics(system=system,
                         initial_state=initial_state,
                         process_tensor=pt,
                         record_all=False, # only record final states
                         progress_type='silent')
+    time2 = time()
     final_state = dynamics.states[-1]
     infidelity = 1 - np.matmul(final_state,target_state).trace()
+
+    print('forwardprop_time = ')
+    print(time2-time1)
     return infidelity.real
 
 def gradient_function(control_parameters,
                       pt):
+    time3 = time()
     hamiltonian_t = get_hamiltonian(
                                     hx=control_parameters[:len(pt)], # first half is sigma x
                                     hz=control_parameters[len(pt):], # second half is sigma z
@@ -152,7 +162,7 @@ def gradient_function(control_parameters,
     # extract derivs of control parameters over half a step, so will need to sum
     # them later to get the full step
     total_derivs_x = gradient_with_x.total_derivs
-
+    time5 = time()
     # since we have already done forwardprop and backprop, we can reuse result
     # by passing the object returned by oqupy.gradient back into oqupy.gradient,
     # except this time with a different dprop_dparam list.
@@ -173,7 +183,13 @@ def gradient_function(control_parameters,
     total_derivs_summed = sum_adjacent_elements(total_derivs)
     # L-BFGS-B needs to have a jacobian expressed as a fortran type array
     # (column major)
-    total_derivs_fortran = np.asfortranarray(total_derivs_summed)
+    total_derivs_fortran = np.asfortranarray(total_derivs_summed)#
+    time4 = time()
+    print('first_gradient_time ')
+    print(time5-time3)
+    print('second_gradient_time')
+    print(time4-time5)
+
     return total_derivs_fortran
 
 initial_guess = np.zeros(2*len(process_tensor))
@@ -193,20 +209,16 @@ bounds_instance = Bounds(lb=lower_bound,ub=upper_bound)
 # plt.plot(lower_bound)
 # plt.plot(upper_bound)
 # plt.show()
-result = minimize(cost_function,
-                  initial_guess,
-                  method='BFGS',
-                  jac=gradient_function,
-                  # bounds=bounds_instance,
-                  args=(process_tensor),
-                  options={'disp': True})
 
-np.save('result',result.x)
-plt.plot(result.x)
-plt.show()
+cost_function(initial_guess,process_tensor)
+# result = minimize(cost_function,
+#                   initial_guess,
+#                   method='L-BFGS-B',
+#                   jac=gradient_function,
+#                   # bounds=bounds_instance,
+#                   args=(process_tensor),
+#                   options={'disp': True})
 
-
-
-
-
-
+# np.save('result',result.x)
+# plt.plot(result.x)
+# plt.show()
