@@ -21,29 +21,37 @@ from numpy import ndarray, sqrt, zeros
 
 from oqupy.contractions import compute_gradient_and_dynamics
 from oqupy.process_tensor import BaseProcessTensor
-from oqupy.system import ParametrizedSystem
+from oqupy.system import ParameterizedSystem
 
 
-def fidelity_gradient(
-        system: ParametrizedSystem,
+def state_gradient(
+        system: ParameterizedSystem,
         initial_state: ndarray,
         target_state: ndarray | Callable[ndarray,ndarray], 
         process_tensor: BaseProcessTensor,
-        parameters: Tuple[List],
+        parameters: List[Tuple],
         time_steps: Optional[ndarray] = None,
-        #        return_fidelity: Optional[bool] = True, Always return final state
         return_dynamics: Optional[bool] = False,
         return_gradprop: Optional[bool] = False,
         return_gradparam: Optional[bool] = False
         ) -> Dict:
     """
-    ToDo:
-    the return dictionary has the fields:
-      'final state' : the final state after evolving the initital state
-      'gradprop' : derivatives of z with respect to half-step propagators  
-      'gradient' : derivatives of z with respect to parameters
-                   a tuple list of floats (PE query - performance overhead?)
-                   ['gradient'][i][n] ... is the derivative with respect to
+    Compute system dynamics and gradient of an objective function with respect to a parameterized Hamiltonian,
+    for a given set of control parameters, accounting for the interaction with an environment described by a 
+    process tensor. The objective function Z is the (specify) product of the final state and target_state.
+    Inputs:
+        system : ParameterizedSystem object to compute the dynamics
+        initial_state : the initial density matrix to propagate forwards
+        target_state : either the state to propagate backwards, or 
+                        a function, which will be called with the final state and should return the 
+                        state to be back-propagated.
+
+    The return dictionary has the fields:
+      'final state' : the final state after evolving the initial state
+      'gradprop' : derivatives of Z with respect to half-step propagators  
+      'gradient' : derivatives of Z with respect to parameters
+                   a tuple list of floats
+                   ['gradient'][n][i] ... is the derivative with respect to
                                           the i-th parameter at the n-th
                                           half-time step.
       'dynamics' : a Dynamics object (optional) 

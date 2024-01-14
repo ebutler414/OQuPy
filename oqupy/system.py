@@ -276,7 +276,7 @@ class TimeDependentSystem(BaseSystem):
         """List of lindblad operators. """
         return copy(self._lindblad_operators)
 
-class ParametrizedSystem(BaseSystem):
+class ParameterizedSystem(BaseSystem):
     r"""
     ToDo:
     Tell the user to use a parametrization for `hamiltonian` such that it is as
@@ -293,7 +293,7 @@ class ParametrizedSystem(BaseSystem):
             propagator_derivatives: Callable[[float, Tuple], Tuple] = None,
             name: Optional[Text] = None,
             description: Optional[Text] = None) -> None:
-        """Create a ParametrizedSystem object."""
+        """Create a ParameterizedSystem object."""
         # input check for Hamiltonian.
         number_of_parameters = len(getfullargspec(hamiltonian).args)
         self._hamiltonian = np.vectorize(hamiltonian)
