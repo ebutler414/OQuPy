@@ -51,7 +51,7 @@ def state_gradient(
       'gradprop' : derivatives of Z with respect to half-step propagators  
       'gradient' : derivatives of Z with respect to parameters
                    a tuple list of floats
-                   ['gradient'][n][i] ... is the derivative with respect to
+                   ['gradient'][i][n] ... is the derivative with respect to
                                           the i-th parameter at the n-th
                                           half-time step.
       'dynamics' : a Dynamics object (optional) 
