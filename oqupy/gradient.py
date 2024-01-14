@@ -29,7 +29,7 @@ def state_gradient(
         initial_state: ndarray,
         target_state: ndarray | Callable[ndarray,ndarray], 
         process_tensor: BaseProcessTensor,
-        parameters: List[Tuple],
+        parameters: Tuple[List],
         time_steps: Optional[ndarray] = None,
         return_dynamics: Optional[bool] = False,
         return_gradprop: Optional[bool] = False,
