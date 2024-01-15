@@ -287,7 +287,7 @@ class ParametrizedSystem(BaseSystem):
             self,
             hamiltonian: Callable[[Tuple], ndarray],
             gammas: \
-                Optional[List[Callable[[Tuple], float]]] = None,
+                Optional[List[Callable[[Tuple], float]]] = None, # not sure what the plan is here. i guess gammas and lops are also to be parameterized?
             lindblad_operators: \
                 Optional[List[Callable[[Tuple], ndarray]]] = None,
             propagator_derivatives: Callable[[float, Tuple], Tuple] = None,
@@ -297,9 +297,9 @@ class ParametrizedSystem(BaseSystem):
         # input check for Hamiltonian.
         number_of_parameters = len(getfullargspec(hamiltonian).args)
         self._hamiltonian = np.vectorize(hamiltonian)
-        trail_hamiltonian = hamiltonian(*(list([0.5]*number_of_parameters)))
-        _check_hamiltonian(trail_hamiltonian)
-        dimension = trail_hamiltonian.shape[0]
+        trial_hamiltonian = hamiltonian(*(list([0.5]*number_of_parameters)))
+        _check_hamiltonian(trial_hamiltonian)
+        dimension = trial_hamiltonian.shape[0]
 
         self._dimension = dimension
         self._number_of_parameters = number_of_parameters
@@ -310,22 +310,27 @@ class ParametrizedSystem(BaseSystem):
         super().__init__(dimension, name, description)
 
     def liouvillian(self, *parameters: float) -> ndarray:
-        r"""
-        ToDo.
         """
-        return NotImplemented # return the liouvillian for the given parameters.
+        Return the Liouvillian for a ParameterizedSystem with parameters given
+        """
+        hamiltonian = self._hamiltonian(*parameters)
+        # still to implement the gammas and lindblad ops
+        #gammas = [gamma(t) for gamma in self._gammas]
+        #lindblad_operators = [l_op(t) for l_op in self._lindblad_operators]
+        return _liouvillian(hamiltonian, [],[])
 
     def get_propagators(
             self,
             dt: float,
             parameters: Tuple[List]) -> Callable[[int], Tuple[ndarray,ndarray]]:
-        """ ToDo. """
         def propagators(step: int):
             """Create the system propagators (first and second half) for
             the time step `step`  """
-            # ToDo
-            # return "pre"-propagator, "post"-propagator
-            return NotImplemented, NotImplemented
+            pre_liou=self.liouvillian(*(parameters[:][2*step]))
+            post_liou=self.liouvillian(*(parameters[:][2*step+1]))
+            first_step = expm(pre_liou*dt/2.0)
+            second_step = expm(post_liou*dt/2.0)
+            return first_step, second_step
         return propagators
 
     def get_propagator_derivatives(

@@ -82,8 +82,8 @@ from oqupy.dynamics import MeanFieldDynamics
 from oqupy.exceptions import NumericsError
 from oqupy.exceptions import NumericsWarning
 
-from oqupy.gradient import fidelity_gradient
-from oqupy.gradient import forward_backward_propagation
+#from oqupy.gradient import fidelity_gradient
+#from oqupy.gradient import forward_backward_propagation
 
 from oqupy import helpers
 
