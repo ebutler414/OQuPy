@@ -320,7 +320,7 @@ class ParametrizedSystem(BaseSystem):
     def get_propagators(
             self,
             dt: float,
-            parameters: Tuple[List]) -> Callable[[int], Tuple[ndarray,ndarray]]:
+            parameters: List[Tuple]) -> Callable[[int], Tuple[ndarray,ndarray]]: # This way simplifies extracting the parameters for a step
         def propagators(step: int):
             """Create the system propagators (first and second half) for
             the time step `step`  """
@@ -334,12 +334,12 @@ class ParametrizedSystem(BaseSystem):
     def get_propagator_derivatives(
             self,
             dt: float,
-            parameters: Tuple[List]) -> Callable[[int],Tuple[Tuple,Tuple]]:
+            parameters: List[Tuple]) -> Callable[[int],Tuple[Tuple,Tuple]]: 
         """ ToDo. """
         if self._propagator_derivatives is not None:
             def propagator_derivatives(step: int):
-                pre_params = (p[2*step] for p in parameters)
-                post_params = (p[2*step+1] for p in parameters)
+                pre_params = parameters[:][2*step] #pre_params = (p[2*step] for p in parameters)
+                post_params= parameters[:][2*step+1] #post_params = (p[2*step+1] for p in parameters)
                 pre_prop_derivs = self._propagator_derivatives(dt, pre_params)
                 post_prop_derivs = self._propagator_derivatives(dt, post_params)
                 # e.g: pre_prop_derivs[i] is the derivative of the propagator at
