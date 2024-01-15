@@ -287,7 +287,7 @@ class ParametrizedSystem(BaseSystem):
             self,
             hamiltonian: Callable[[Tuple], ndarray],
             gammas: \
-                Optional[List[Callable[[Tuple], float]]] = None, # not sure what the plan is here. i guess gammas and lops are also to be parameterized?
+                Optional[List[Callable[[Tuple], float]]] = None, 
             lindblad_operators: \
                 Optional[List[Callable[[Tuple], ndarray]]] = None,
             propagator_derivatives: Callable[[float, Tuple], Tuple] = None,
@@ -304,8 +304,7 @@ class ParametrizedSystem(BaseSystem):
         self._dimension = dimension
         self._number_of_parameters = number_of_parameters
         self._hamiltonian = hamiltonian
-        self._gammas = gammas
-        self._lindblad_operators = lindblad_operators
+        self._gammas,self._lindblad_operators = _check_parameterized_gammas_lindblad_operators(gammas,lindblad_operators,number_of_parameters)
         self._propagator_derivatives = propagator_derivatives
         super().__init__(dimension, name, description)
 
@@ -314,10 +313,9 @@ class ParametrizedSystem(BaseSystem):
         Return the Liouvillian for a ParameterizedSystem with parameters given
         """
         hamiltonian = self._hamiltonian(*parameters)
-        # still to implement the gammas and lindblad ops
-        #gammas = [gamma(t) for gamma in self._gammas]
-        #lindblad_operators = [l_op(t) for l_op in self._lindblad_operators]
-        return _liouvillian(hamiltonian, [],[])
+        gammas=[gamma(*parameters) for gamma in self._gammas]
+        lindblad_operators=[lop(*parameters) for lop in self._lindblad_operators]
+        return _liouvillian(hamiltonian, gammas,lindblad_operators)
 
     def get_propagators(
             self,
@@ -349,7 +347,6 @@ class ParametrizedSystem(BaseSystem):
                 #      ith parameter.
                 return pre_prop_derivs, post_prop_derivs
             return propagator_derivatives
-
         else:
             def propagator_derivs(step: int):
                 # do finite difference
@@ -976,6 +973,20 @@ def _check_gammas_lindblad_operators(gammas, lindblad_operators) -> Tuple[
             "All elements of `lindblad_operators` must be numpy arrays.") \
                 from e
     return tmp_gammas, tmp_lindblad_operators
+
+def _check_parameterized_gammas_lindblad_operators(gammas,
+                                                   lindblad_operators,number_of_parameters):
+    """Input check for parameterized gammas and lindblad_operators"""
+    gammas, lindblad_operators = _check_dissipator_lists(gammas,lindblad_operators)
+    gammalist=[]
+    loplist=[]
+    for gamma,lop in zip(gammas,lindblad_operators):
+        try_gamma=gamma(*(list([0.5]*number_of_parameters)))
+        try_lop=lop(*(list([0.5]*number_of_parameters)))
+        gammalist.append(try_gamma)
+        loplist.append(try_lop)    
+    _check_gammas_lindblad_operators(gammalist,loplist)
+    return gammas, lindblad_operators
 
 def _check_tdependent_gammas_lindblad_operators(
         gammas,
