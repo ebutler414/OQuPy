@@ -287,7 +287,7 @@ class ParameterizedSystem(BaseSystem):
             self,
             hamiltonian: Callable[[Tuple], ndarray],
             gammas: \
-                Optional[List[Callable[[Tuple], float]]] = None,
+                Optional[List[Callable[[Tuple], float]]] = None, 
             lindblad_operators: \
                 Optional[List[Callable[[Tuple], ndarray]]] = None,
             propagator_derivatives: Callable[[float, Tuple], Tuple] = None,
@@ -297,46 +297,49 @@ class ParameterizedSystem(BaseSystem):
         # input check for Hamiltonian.
         number_of_parameters = len(getfullargspec(hamiltonian).args)
         self._hamiltonian = np.vectorize(hamiltonian)
-        trail_hamiltonian = hamiltonian(*(list([0.5]*number_of_parameters)))
-        _check_hamiltonian(trail_hamiltonian)
-        dimension = trail_hamiltonian.shape[0]
+        trial_hamiltonian = hamiltonian(*(list([0.5]*number_of_parameters)))
+        _check_hamiltonian(trial_hamiltonian)
+        dimension = trial_hamiltonian.shape[0]
 
         self._dimension = dimension
         self._number_of_parameters = number_of_parameters
         self._hamiltonian = hamiltonian
-        self._gammas = gammas
-        self._lindblad_operators = lindblad_operators
+        self._gammas,self._lindblad_operators = _check_parameterized_gammas_lindblad_operators(gammas,lindblad_operators,number_of_parameters)
         self._propagator_derivatives = propagator_derivatives
         super().__init__(dimension, name, description)
 
     def liouvillian(self, *parameters: float) -> ndarray:
-        r"""
-        ToDo.
         """
-        return NotImplemented # return the liouvillian for the given parameters.
+        Return the Liouvillian for a ParameterizedSystem with parameters given
+        """
+        hamiltonian = self._hamiltonian(*parameters)
+        gammas=[gamma(*parameters) for gamma in self._gammas]
+        lindblad_operators=[lop(*parameters) for lop in self._lindblad_operators]
+        return _liouvillian(hamiltonian, gammas,lindblad_operators)
 
     def get_propagators(
             self,
             dt: float,
-            parameters: Tuple[List]) -> Callable[[int], Tuple[ndarray,ndarray]]:
-        """ ToDo. """
+            parameters: List[Tuple]) -> Callable[[int], Tuple[ndarray,ndarray]]: # This way simplifies extracting the parameters for a step
         def propagators(step: int):
             """Create the system propagators (first and second half) for
             the time step `step`  """
-            # ToDo
-            # return "pre"-propagator, "post"-propagator
-            return NotImplemented, NotImplemented
+            pre_liou=self.liouvillian(*(parameters[:][2*step]))
+            post_liou=self.liouvillian(*(parameters[:][2*step+1]))
+            first_step = expm(pre_liou*dt/2.0)
+            second_step = expm(post_liou*dt/2.0)
+            return first_step, second_step
         return propagators
 
     def get_propagator_derivatives(
             self,
             dt: float,
-            parameters: Tuple[List]) -> Callable[[int],Tuple[Tuple,Tuple]]:
+            parameters: List[Tuple]) -> Callable[[int],Tuple[Tuple,Tuple]]: 
         """ ToDo. """
         if self._propagator_derivatives is not None:
             def propagator_derivatives(step: int):
-                pre_params = (p[2*step] for p in parameters)
-                post_params = (p[2*step+1] for p in parameters)
+                pre_params = parameters[:][2*step] #pre_params = (p[2*step] for p in parameters)
+                post_params= parameters[:][2*step+1] #post_params = (p[2*step+1] for p in parameters)
                 pre_prop_derivs = self._propagator_derivatives(dt, pre_params)
                 post_prop_derivs = self._propagator_derivatives(dt, post_params)
                 # e.g: pre_prop_derivs[i] is the derivative of the propagator at
@@ -344,7 +347,6 @@ class ParameterizedSystem(BaseSystem):
                 #      ith parameter.
                 return pre_prop_derivs, post_prop_derivs
             return propagator_derivatives
-
         else:
             def propagator_derivs(step: int):
                 # do finite difference
@@ -971,6 +973,20 @@ def _check_gammas_lindblad_operators(gammas, lindblad_operators) -> Tuple[
             "All elements of `lindblad_operators` must be numpy arrays.") \
                 from e
     return tmp_gammas, tmp_lindblad_operators
+
+def _check_parameterized_gammas_lindblad_operators(gammas,
+                                                   lindblad_operators,number_of_parameters):
+    """Input check for parameterized gammas and lindblad_operators"""
+    gammas, lindblad_operators = _check_dissipator_lists(gammas,lindblad_operators)
+    gammalist=[]
+    loplist=[]
+    for gamma,lop in zip(gammas,lindblad_operators):
+        try_gamma=gamma(*(list([0.5]*number_of_parameters)))
+        try_lop=lop(*(list([0.5]*number_of_parameters)))
+        gammalist.append(try_gamma)
+        loplist.append(try_lop)    
+    _check_gammas_lindblad_operators(gammalist,loplist)
+    return gammas, lindblad_operators
 
 def _check_tdependent_gammas_lindblad_operators(
         gammas,

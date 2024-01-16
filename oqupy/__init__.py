@@ -82,8 +82,8 @@ from oqupy.dynamics import MeanFieldDynamics
 from oqupy.exceptions import NumericsError
 from oqupy.exceptions import NumericsWarning
 
-from oqupy.gradient import fidelity_gradient
-from oqupy.gradient import forward_backward_propagation
+#from oqupy.gradient import fidelity_gradient
+#from oqupy.gradient import forward_backward_propagation
 
 from oqupy import helpers
 
@@ -99,7 +99,7 @@ from oqupy.process_tensor import FileProcessTensor
 from oqupy.pt_tebd import PtTebd
 from oqupy.pt_tebd import PtTebdParameters
 
-from oqupy.system import ParametrizedSystem
+from oqupy.system import ParameterizedSystem
 from oqupy.system import System
 from oqupy.system import SystemChain
 from oqupy.system import TimeDependentSystem
