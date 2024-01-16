@@ -336,16 +336,21 @@ class ParameterizedSystem(BaseSystem):
     def halfstep_propagator_derivative(self,dt):
         """Returns a function which takes a list of parameters
         And returns the derivative of the propagator for that case.
-        From the documentation for Jacobian, I believe the returned function returns 
-        r such that the derivative wrt the ith parameter is r[:,i,:]."""
+        From the documentation for Jacobian, I believe it produces a function which returns 
+        r such that the derivative wrt the ith parameter is r[:,i,:]. I have translated this here to the 
+        form suggested by Gerald in the get_propagator_derivatives code below.
+        ToDo: check this works. There may need to be a transpose.
+        """
 
         def prop(parameterlist):
-            return expm(self.liouvillian(*parameterlist))*dt/2.0)
+            return expm(self.liouvillian(*parameterlist)*dt/2.0)
 
         jacfunre=Jacobian(lambda x: prop(x).real)
         jacfunim=Jacobian(lambda x: prop(x).imag)
 
-        jacfun=lambda x: jacfunre(x)+1.0j*jacfunim(x)
+        def jacfun(x):
+            jac=jacfunre(x)+1.0j*jacfunim(x)
+            return [jac[:,i,:] for i in range(self._number_of_parameters)]
 
         return jacfun
     
@@ -356,21 +361,24 @@ class ParameterizedSystem(BaseSystem):
         """ ToDo. """
         if self._propagator_derivatives is not None:
             def propagator_derivatives(step: int):
-                pre_params = parameters[2*step] #pre_params = (p[2*step] for p in parameters)
-                post_params= parameters[2*step+1] #post_params = (p[2*step+1] for p in parameters)
+                pre_params=parameters[2*step]
+                post_params= parameters[2*step+1]
                 pre_prop_derivs = self._propagator_derivatives(dt, pre_params)
                 post_prop_derivs = self._propagator_derivatives(dt, post_params)
-                # e.g: pre_prop_derivs[i] is the derivative of the propagator at
+                #      pre_prop_derivs[i] is the derivative of the propagator at
                 #      the first half of time step `step` with respect to the
                 #      ith parameter.
                 return pre_prop_derivs, post_prop_derivs
             return propagator_derivatives
         else:
-            def propagator_derivs(step: int):
-                # do finite difference
-                return NotImplementedError
-
-        return NotImplemented
+            pd=self.halfstep_propagator_derivative(dt)
+            def propagator_derivatives(step: int): 
+                pre_params=parameters[2*step]
+                post_params= parameters[2*step+1]
+                pre_prop_derivs=pd(pre_params)
+                post_prop_derivs=pd(post_params)
+                return pre_prop_derivs,post_prop_derivs
+            return propagator_derivatives
 
     @property
     def number_of_parameters(self) -> Callable[[Tuple], ndarray]:
