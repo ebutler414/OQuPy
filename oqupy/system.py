@@ -26,6 +26,8 @@ from numpy import ndarray
 from scipy.linalg import expm
 from scipy import integrate
 
+from numdifftools import Jacobian
+
 from oqupy.base_api import BaseAPIClass
 from oqupy.config import NpDtype, FINITE_DIFFERENCE_H
 import oqupy.operators as op
@@ -331,6 +333,22 @@ class ParameterizedSystem(BaseSystem):
             return first_step, second_step
         return propagators
 
+    def halfstep_propagator_derivative(self,dt):
+        """Returns a function which takes a list of parameters
+        And returns the derivative of the propagator for that case.
+        From the documentation for Jacobian, I believe the returned function returns 
+        r such that the derivative wrt the ith parameter is r[:,i,:]."""
+
+        def prop(parameterlist):
+            return expm(self.liouvillian(*parameterlist))*dt/2.0)
+
+        jacfunre=Jacobian(lambda x: prop(x).real)
+        jacfunim=Jacobian(lambda x: prop(x).imag)
+
+        jacfun=lambda x: jacfunre(x)+1.0j*jacfunim(x)
+
+        return jacfun
+    
     def get_propagator_derivatives(
             self,
             dt: float,
