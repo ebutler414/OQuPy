@@ -276,7 +276,7 @@ class TimeDependentSystem(BaseSystem):
         """List of lindblad operators. """
         return copy(self._lindblad_operators)
 
-class ParametrizedSystem(BaseSystem):
+class ParameterizedSystem(BaseSystem):
     r"""
     ToDo:
     Tell the user to use a parametrization for `hamiltonian` such that it is as
