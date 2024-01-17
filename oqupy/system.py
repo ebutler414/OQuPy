@@ -292,10 +292,10 @@ class ParameterizedSystem(BaseSystem):
                 Optional[List[Callable[[Tuple], float]]] = None, 
             lindblad_operators: \
                 Optional[List[Callable[[Tuple], ndarray]]] = None,
-            propagator_derivatives: Callable[[float, Tuple], Tuple] = None,
+            propagator_derivatives: Callable[[float, Tuple], ndarray] = None,
             name: Optional[Text] = None,
             description: Optional[Text] = None) -> None:
-        """Create a ParametrizedSystem object."""
+        """Create a ParameterizedSystem object."""
         # input check for Hamiltonian.
         number_of_parameters = len(getfullargspec(hamiltonian).args)
         self._hamiltonian = np.vectorize(hamiltonian)
@@ -335,11 +335,9 @@ class ParameterizedSystem(BaseSystem):
 
     def halfstep_propagator_derivative(self,dt):
         """Returns a function which takes a list of parameters
-        And returns the derivative of the propagator for that case.
-        From the documentation for Jacobian, I believe it produces a function which returns 
-        r such that the derivative wrt the ith parameter is r[:,i,:]. I have translated this here to the 
-        form suggested by Gerald in the get_propagator_derivatives code below.
-        ToDo: check this works. There may need to be a transpose.
+        And returns the derivative of the half-step propagator for those parameters.
+        The return is a list r, such that the derivative of the propagator with respect to the
+        ith parameter is r[i].
         """
 
         def prop(parameterlist):
@@ -358,7 +356,6 @@ class ParameterizedSystem(BaseSystem):
             self,
             dt: float,
             parameters: List[Tuple]) -> Callable[[int],Tuple[Tuple,Tuple]]: 
-        """ ToDo. """
         if self._propagator_derivatives is not None:
             def propagator_derivatives(step: int):
                 pre_params=parameters[2*step]
