@@ -26,6 +26,8 @@ from numpy import ndarray
 from scipy.linalg import expm
 from scipy import integrate
 
+from numdifftools import Jacobian
+
 from oqupy.base_api import BaseAPIClass
 from oqupy.config import NpDtype, FINITE_DIFFERENCE_H
 import oqupy.operators as op
@@ -290,7 +292,7 @@ class ParameterizedSystem(BaseSystem):
                 Optional[List[Callable[[Tuple], float]]] = None, 
             lindblad_operators: \
                 Optional[List[Callable[[Tuple], ndarray]]] = None,
-            propagator_derivatives: Callable[[float, Tuple], Tuple] = None,
+            propagator_derivatives: Callable[[float, Tuple], ndarray] = None,
             name: Optional[Text] = None,
             description: Optional[Text] = None) -> None:
         """Create a ParameterizedSystem object."""
@@ -324,35 +326,56 @@ class ParameterizedSystem(BaseSystem):
         def propagators(step: int):
             """Create the system propagators (first and second half) for
             the time step `step`  """
-            pre_liou=self.liouvillian(*(parameters[:][2*step]))
-            post_liou=self.liouvillian(*(parameters[:][2*step+1]))
+            pre_liou=self.liouvillian(*(parameters[2*step]))
+            post_liou=self.liouvillian(*(parameters[2*step+1]))
             first_step = expm(pre_liou*dt/2.0)
             second_step = expm(post_liou*dt/2.0)
             return first_step, second_step
         return propagators
 
+    def halfstep_propagator_derivative(self,dt):
+        """Returns a function which takes a list of parameters
+        And returns the derivative of the half-step propagator for those parameters.
+        The return is a list r, such that the derivative of the propagator with respect to the
+        ith parameter is r[i].
+        """
+
+        def prop(parameterlist):
+            return expm(self.liouvillian(*parameterlist)*dt/2.0)
+
+        jacfunre=Jacobian(lambda x: prop(x).real)
+        jacfunim=Jacobian(lambda x: prop(x).imag)
+
+        def jacfun(x):
+            jac=jacfunre(x)+1.0j*jacfunim(x)
+            return [jac[:,i,:] for i in range(self._number_of_parameters)]
+
+        return jacfun
+    
     def get_propagator_derivatives(
             self,
             dt: float,
             parameters: List[Tuple]) -> Callable[[int],Tuple[Tuple,Tuple]]: 
-        """ ToDo. """
         if self._propagator_derivatives is not None:
             def propagator_derivatives(step: int):
-                pre_params = parameters[:][2*step] #pre_params = (p[2*step] for p in parameters)
-                post_params= parameters[:][2*step+1] #post_params = (p[2*step+1] for p in parameters)
+                pre_params=parameters[2*step]
+                post_params= parameters[2*step+1]
                 pre_prop_derivs = self._propagator_derivatives(dt, pre_params)
                 post_prop_derivs = self._propagator_derivatives(dt, post_params)
-                # e.g: pre_prop_derivs[i] is the derivative of the propagator at
+                #      pre_prop_derivs[i] is the derivative of the propagator at
                 #      the first half of time step `step` with respect to the
                 #      ith parameter.
                 return pre_prop_derivs, post_prop_derivs
             return propagator_derivatives
         else:
-            def propagator_derivs(step: int):
-                # do finite difference
-                return NotImplementedError
-
-        return NotImplemented
+            pd=self.halfstep_propagator_derivative(dt)
+            def propagator_derivatives(step: int): 
+                pre_params=parameters[2*step]
+                post_params= parameters[2*step+1]
+                pre_prop_derivs=pd(pre_params)
+                post_prop_derivs=pd(post_params)
+                return pre_prop_derivs,post_prop_derivs
+            return propagator_derivatives
 
     @property
     def number_of_parameters(self) -> Callable[[Tuple], ndarray]:
