@@ -33,6 +33,8 @@ __all__ = [
     'FileProcessTensor',
     'forward_backward_propagation',
     'guess_tempo_parameters',
+    'Gradient',
+    'GradientDynamics',
     'helpers',
     'import_process_tensor',
     'MeanFieldDynamics',
@@ -68,6 +70,7 @@ from oqupy.bath_dynamics import TwoTimeBathCorrelations
 from oqupy.contractions import compute_correlations
 from oqupy.contractions import compute_dynamics
 from oqupy.contractions import compute_dynamics_with_field
+from oqupy.contractions import compute_gradient_and_dynamics
 
 from oqupy.control import Control
 from oqupy.control import ChainControl
@@ -82,8 +85,12 @@ from oqupy.dynamics import MeanFieldDynamics
 from oqupy.exceptions import NumericsError
 from oqupy.exceptions import NumericsWarning
 
+<<<<<<< HEAD
 #from oqupy.gradient import fidelity_gradient
 #from oqupy.gradient import forward_backward_propagation
+=======
+from oqupy.gradient import gradient
+>>>>>>> extended_propagation
 
 from oqupy import helpers
 

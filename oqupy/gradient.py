@@ -17,6 +17,9 @@ control parameters.
 """
 from typing import Dict, Iterable, List, Optional, Tuple
 
+import numpy as np
+import tensornetwork as tn
+
 from numpy import ndarray, sqrt, zeros
 
 from oqupy.contractions import compute_gradient_and_dynamics
@@ -27,7 +30,7 @@ from oqupy.system import ParameterizedSystem
 def state_gradient(
         system: ParameterizedSystem,
         initial_state: ndarray,
-        target_state: ndarray | Callable[ndarray,ndarray], 
+        target_state: ndarray,
         process_tensor: BaseProcessTensor,
         parameters: Tuple[List],
         time_steps: Optional[ndarray] = None,
@@ -58,7 +61,6 @@ def state_gradient(
 
     """
 
-
     # compute propagator list and pass this to forward_backward_propagation, 
 
     fb_prop_result = forward_backward_propagation(
@@ -67,32 +69,52 @@ def state_gradient(
         target_state,
         process_tensor,
         parameters)
+    
+    grad_prop = fb_prop_result['derivatives']
+    dynamics = fb_prop_result['dynamics']
 
     if time_steps is None:
         time_steps = range(2*len(process_tensor))
 
     sys_dim_squared = system.dimension**2
     dprop_dparam_array = zeros(time_steps.size,
-                               system.dimension**2,
-                               system.dimension**2)
+                               sys_dim_squared,
+                               sys_dim_squared)
+    
+    pre_node_list = zeros(time_steps.size,
+                               sys_dim_squared,
+                               sys_dim_squared)
+    
+    post_node_list = zeros(time_steps.size,
+                               sys_dim_squared,
+                               sys_dim_squared)
 
     for i,step in enumerate(time_steps):
         dprop_dparam_array[i]=system.get_propagator_derivatives(
             process_tensor.dt,
             parameters=parameters)
+        pre_node_list[i], post_node_list[i] = system.get_propagators(
+            process_tensor.dt,
+            parameters=parameters)
         # this does not use step, consider whether to change
 
     final_derivs = _chain_rule(
-        adjoint_tensor=fb_prop_result,
+        adjoint_tensor=grad_prop,
         dprop_dparam=dprop_dparam_array,
-        pre_node=NotImplemented
-        post_node=NotImplemented)
-
-    return NotImplemented
-
+        pre_node=pre_node_list,
+        post_node=post_node_list)
+    
+    return_dict = {
+        'final state':dynamics.states[-1],
+        'gradprop':grad_prop,
+        'gradient':final_derivs,
+        'dynamics':dynamics
+    }
+    
+    return return_dict
 
 def forward_backward_propagation(
-        system: ParametrizedSystem,
+        system: ParameterizedSystem,
         initial_state: ndarray,
         target_state: ndarray,
         process_tensor: BaseProcessTensor,
@@ -136,6 +158,45 @@ def _chain_rule(
         adjoint_tensor:ndarray,
         dprop_dparam:ndarray,
         pre_node:ndarray,
-        post_node:ndarray)
+        post_node:ndarray):
+    
+    num_steps = len(dprop_dparam)
 
-    return NotImplementedError
+    def combine_derivs(
+            target_deriv,
+            pre_prop,
+            post_prop):
+
+            target_deriv_node = tn.Node(target_deriv)
+            pre_node=tn.Node(pre_prop)
+            post_node=tn.Node(post_prop)
+
+            target_deriv_node[0] ^ pre_node[0]
+            target_deriv_node[1] ^ pre_node[1]
+            target_deriv_node[2] ^ post_node[0] 
+            target_deriv_node[3] ^ post_node[1] 
+
+            final_node = target_deriv_node @ pre_node \
+                            @ post_node
+
+            tensor = final_node.tensor
+
+            return tensor
+    
+    total_derivs = np.zeros(num_steps,dtype='complex128')
+
+    for i in range(0,num_steps-1,2): # populating two elements each step
+
+        first_half_prop,second_half_prop=pre_node(i//2),post_node(i//2)
+        first_half_prop_deriv,second_half_prop_deriv = dprop_dparam(i//2)
+
+        total_derivs[i] = combine_derivs(
+                        adjoint_tensor[i//2],
+                        first_half_prop,
+                        second_half_prop_deriv)
+        total_derivs[i+1] = combine_derivs(
+                        adjoint_tensor[i//2],
+                        first_half_prop_deriv,
+                        second_half_prop)
+
+    return total_derivs
