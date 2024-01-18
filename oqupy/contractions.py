@@ -26,12 +26,13 @@ from oqupy.config import NpDtype, INTEGRATE_EPSREL, SUBDIV_LIMIT
 from oqupy.control import Control
 from oqupy.dynamics import Dynamics, MeanFieldDynamics
 from oqupy.process_tensor import BaseProcessTensor
-from oqupy.system import BaseSystem, System, TimeDependentSystem
+from oqupy.system import ParameterizedSystem, BaseSystem, System, TimeDependentSystem
+
 from oqupy.system import MeanFieldSystem
 from oqupy.operators import left_super, right_super
 from oqupy.util import check_convert, check_isinstance, check_true
 from oqupy.util import get_progress
-from oqupy.dynamics import GradientDynamics
+
 
 
 Indices = Union[int, slice, List[Union[int, slice]]]
@@ -40,7 +41,7 @@ Indices = Union[int, slice, List[Union[int, slice]]]
 # -- compute dynamics ---------------------------------------------------------
 
 def compute_dynamics(
-        system: Union[System, TimeDependentSystem],
+        system: ParameterizedSystem,
         initial_state: Optional[ndarray] = None,
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
@@ -184,7 +185,7 @@ def compute_dynamics(
     return Dynamics(times=list(times),states=states)
 
 def compute_gradient_and_dynamics(
-        system: Union[System, TimeDependentSystem],
+        system: ParameterizedSystem,
         initial_state: Optional[ndarray] = None,
         target_state: Optional[ndarray] = None,
         dt: Optional[float] = None,
@@ -197,447 +198,7 @@ def compute_gradient_and_dynamics(
         get_forward_and_backprop_list = False,
         subdiv_limit: Optional[int] = SUBDIV_LIMIT,
         liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
-<<<<<<< HEAD
         progress_type: Optional[Text] = None) -> Tuple[List,Dynamics]:
-=======
-        progress_type: Optional[Text] = None) -> GradientDynamics:
->>>>>>> extended_propagation
-    """
-    Compute some objective function and calculate its gradient w.r.t.
-    some control parameters, accounting
-    (optionally) for interaction with an environment using one or more
-    process tensors.
-
-    Parameters
-    ----------
-    system: Union[System, TimeDependentSystem]
-        Object containing the system Hamiltonian information.
-    initial_state: ndarray
-        Initial system state.
-    target_state:
-        Some pure target state or derivative w.r.t. an objective functioni
-    dt: float
-        Length of a single time step.
-    num_steps: int
-        Optional number of time steps to be computed.
-    start_time: float
-        Optional start time offset.
-    process_tensor: Union[List[BaseProcessTensor],BaseProcessTensor]
-        Optional process tensor object or list of process tensor objects.
-    control: Control
-        Optional control operations.
-    record_all: bool
-        If `false` function only computes the final state.
-    subdiv_limit: int (default = config.SUBDIV_LIMIT)
-        The maximum number of subdivisions used during the adaptive
-        algorithm when integrating the system Liouvillian. If None
-        then the Liouvillian is not integrated but sampled twice to
-        to construct the system propagators at each timestep.
-    liouvillian_epsrel: float (default = config.INTEGRATE_EPSREL)
-        The relative error tolerance for the adaptive algorithm
-        when integrating the system Liouvillian.
-    progress_type: str (default = None)
-        The progress report type during the computation. Types are:
-        {``silent``, ``simple``, ``bar``}. If `None` then
-        the default progress type is used.
-
-    Returns
-    -------
-    dynamics: Dynamics
-        The system dynamics for the given system Hamiltonian
-        (accounting for the interaction with the environment).
-    """
-
-    # -- input parsing --
-    parsed_parameters = _compute_dynamics_input_parse(
-        False, system, initial_state, dt, num_steps, start_time,
-        process_tensor, control, record_all)
-    system, initial_state, dt, num_steps, start_time, \
-        process_tensors, control, record_all, hs_dim = parsed_parameters
-
-    assert target_state is not None, \
-        'target state must be given explicitly'
-
-    num_envs = len(process_tensors)
-
-    # -- prepare propagators --
-    propagators = system.get_propagators(dt, start_time, subdiv_limit,
-                                       liouvillian_epsrel)
-
-    # -- prepare controls --
-    def controls(step: int):
-        return control.get_controls(
-            step,
-            dt=dt,
-            start_time=start_time)
-
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # ~~~~ Forwardpropagation ~~~~
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    # -- initialize computation --
-    #
-    #  Initial state including the bond legs to the environments with:
-    #    edges 0, 1, .., num_envs-1    are the bond legs of the environments
-    #    edge  -1                      is the state leg
-    initial_ndarray = initial_state.reshape(hs_dim**2)
-    initial_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
-    current_node = tn.Node(initial_ndarray)
-    current_edges = current_node[:]
-
-    states = []
-    title = "--> Compute dynamics:"
-    prog_bar = get_progress(progress_type)(num_steps, title)
-    prog_bar.enter()
-
-    forwardprop_deriv_list = []
-    forwardprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
-
-    for step in range(num_steps+1):
-        # -- apply pre measurement control --
-        pre_measurement_control, post_measurement_control = controls(step)
-
-        if pre_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, pre_measurement_control)
-
-        if step == num_steps:
-            break
-
-        # -- extract current state -- update field --
-        if record_all:
-            caps = _get_caps(process_tensors, step)
-            state_tensor = _apply_caps(current_node, current_edges, caps)
-            state = state_tensor.reshape(hs_dim, hs_dim)
-            states.append(state)
-
-        prog_bar.update(step)
-
-        # -- apply post measurement control --
-        if post_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, post_measurement_control)
-
-        # -- propagate one time step --
-        first_half_prop, second_half_prop = propagators(step)
-        pt_mpos = _get_pt_mpos(process_tensors, step)
-
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, first_half_prop)
-        current_node, current_edges = _apply_pt_mpos(
-            current_node, current_edges, pt_mpos)
-
-        # appropriate timeslice to store forwardprop is here (after the MPO and
-        # before the second_half_prop)
-        # -- store derivative node --
-        forwardprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
-
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, second_half_prop)
-
-    # -- extract last state --
-    caps = _get_caps(process_tensors, step)
-    state_tensor = _apply_caps(current_node, current_edges, caps)
-    final_state = state_tensor.reshape(hs_dim, hs_dim)
-    states.append(final_state)
-
-    prog_bar.update(num_steps)
-    prog_bar.exit()
-
-    # -- create dynamics object --
-    if record_all:
-        times = start_time + np.arange(len(states))*dt
-    else:
-        times = [start_time + len(states)*dt]
-
-
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # ~~~~~ Backpropagation ~~~~~~
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-    # -- initialize computation (except backwards) --
-    #
-    #  Initial state including the bond legs to the environments with:
-    #    edges 0, 1, .., num_envs-1    are the bond legs of the environments
-    #    edge  -1                      is the state leg
-
-    # not sure if this is correct but to get the final cap,
-    final_cap = _get_caps(process_tensors, num_steps)
-
-    target_ndarray = target_state.T
-    target_ndarray = target_ndarray.reshape(hs_dim**2)
-    target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
-    current_node = tn.Node(np.outer(final_cap,target_ndarray)) # might be a wire crossed or something
-    current_edges = current_node[:]
-
-    combined_deriv_list = []
-
-    if get_forward_and_backprop_list:
-        backprop_deriv_list = [tn.replicate_nodes([current_node])[0]]
-
-        forwardprop_tensor = forwardprop_deriv_list[num_steps]
-        backprop_tensor = backprop_deriv_list[0]
-
-    else:
-        forwardprop_tensor = forwardprop_deriv_list[num_steps]
-        # if we're not keeping the full list, we can delete the
-        # forwardprop tensor to save memory
-        del forwardprop_deriv_list[num_steps]
-        backprop_tensor = tn.replicate_nodes([current_node])[0]
-        # note now backprop_deriv_list is unnecessary
-
-    for i in range(num_envs):
-        forwardprop_tensor[i] ^ backprop_tensor[i]
-
-    deriv = forwardprop_tensor @ backprop_tensor
-    combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
-
-    # note it prob makes sense to delete the plus one here, which would remove
-    # the -1s in the indices inside the for loop. Might screw up the final pre
-    # node for the Nth step, because if this +1 was here then the final pre node
-    # would be -1. this might be a symptom of a bug, TODO: Investigate.
-<<<<<<< HEAD
-    for step in reversed(range(num_steps+1)):
-=======
-    for step in reversed(range(1,num_steps)):
->>>>>>> extended_propagation
-        # -- now the backpropagation part --
-
-        # -- apply pre measurement control --
-        pre_measurement_control, post_measurement_control = controls(step)
-
-        if post_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, post_measurement_control.T)
-
-        if step == 0: # i think this is correct
-            break
-
-        # record_all not necessary for backprop as it's been done in the
-        # forwardprop
-
-        # prog_bar.update(num_steps - step) # commented
-
-        # -- apply post measurement control --
-        if pre_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, pre_measurement_control.T)
-
-        # -- propagate one time step --
-        # we're propagating backwards so we're actually using the propagators
-        # from the previous timestep, hence -1 in next line (see note at start
-        # of the loop about removing +1 in range() definition)
-<<<<<<< HEAD
-        first_half_prop, second_half_prop = propagators(step-1)
-        pt_mpos = _get_pt_mpos_backprop(process_tensors, step-1)
-=======
-        first_half_prop, second_half_prop = propagators(step)
-        pt_mpos = _get_pt_mpos_backprop(process_tensors, step)
->>>>>>> extended_propagation
-
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, second_half_prop.T)
-        current_node, current_edges = _apply_pt_mpos(
-            current_node, current_edges, pt_mpos)
-
-<<<<<<< HEAD
-        # appropriate timeslice in diagram is here
-        # # store derivative node
-
-=======
->>>>>>> extended_propagation
-        forwardprop_tensor = forwardprop_deriv_list[step-1]
-
-        if get_forward_and_backprop_list:
-            backprop_deriv_list.append(tn.replicate_nodes([current_node])[0])
-            backprop_tensor = tn.replicate_nodes([current_node])[0]
-        else:
-            # test:
-<<<<<<< HEAD
-            if len(forwardprop_deriv_list)-1 != step-1:
-=======
-
-            if len(forwardprop_deriv_list)-1 != step:
->>>>>>> extended_propagation
-                raise IndexError('These should be equal')
-
-            # if we're not keeping the full list, we can delete the
-            # forwardprop tensor to save memory
-            del forwardprop_deriv_list[step-1]
-            backprop_tensor =  tn.replicate_nodes([current_node])[0]
-
-        for i in range(num_envs):
-            forwardprop_tensor[i] ^ backprop_tensor[i]
-
-        deriv = forwardprop_tensor @ backprop_tensor
-        combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
-
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, first_half_prop.T)
-
-    # deriv_list is currently in the reversed order from what you'd expect, so
-    # reversing the order of the list.....
-
-    deriv_list_reversed = list(reversed(combined_deriv_list))
-
-    # -- create dynamics object --
-    if record_all:
-        times = start_time + np.arange(len(states))*dt
-    else:
-        times = [start_time + len(states)*dt]
-
-<<<<<<< HEAD
-    dynamics_instance = Dynamics(times=list(times),states=states)
-
-=======
->>>>>>> extended_propagation
-    if get_forward_and_backprop_list is False:
-        forwardprop_deriv_list = None
-        backprop_deriv_list = None
-
-<<<<<<< HEAD
-    return deriv_list_reversed,dynamics_instance
-=======
-
-    return GradientDynamics(times=list(times),
-            states=states,
-            forwardprop_deriv_list=forwardprop_deriv_list, 
-            backprop_deriv_list=backprop_deriv_list,
-            deriv_list=deriv_list_reversed)
-
-def compute_hessian(
-        system: Union[System, TimeDependentSystem],
-        initial_state: Optional[ndarray] = None,
-        target_state: Optional[ndarray] = None,
-        dt: Optional[float] = None,
-        num_steps: Optional[int] = None,
-        start_time: Optional[float] = 0.0,
-        process_tensor: Optional[Union[List[BaseProcessTensor],
-                                       BaseProcessTensor]] = None,
-        control: Optional[Control] = None,
-        record_all: Optional[bool] = True,
-        get_forward_and_backprop_list = True,
-        subdiv_limit: Optional[int] = SUBDIV_LIMIT,
-        liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
-        progress_type: Optional[Text] = None,
-        gradient_dynamics: Optional[GradientDynamics]=None) -> GradientDynamics:
-    
-        # -- input parsing --
-    parsed_parameters = _compute_dynamics_input_parse(
-        False, system, initial_state, dt, num_steps, start_time,
-        process_tensor, control, record_all)
-    system, initial_state, dt, num_steps, start_time, \
-        process_tensors, control, record_all, hs_dim = parsed_parameters
-    
-    get_forward_backprop_list=True
-    
-    assert target_state is not None, \
-        'target state must be given explicitly'
-
-    num_envs = len(process_tensors)
-
-    # -- prepare propagators --
-    propagators = system.get_propagators(dt, start_time, subdiv_limit,
-                                       liouvillian_epsrel)
-
-    system, initial_state, dt, num_steps, start_time, \
-    process_tensors, control, record_all, hs_dim = parsed_parameters
-
-    d=process_tensor.hilbert_space_dimension
-    zero_matrix= np.zeros((d,d))
-    zero_node=tn.Node(zero_matrix)
-
-    extended_state_matrix=np.full((num_steps,num_steps),zero_node)
-    hessian_matrix=np.full((num_steps,num_steps),zero_node)
-
-
-    if(gradient_dynamics==None):
-        gradient_dynamics = compute_gradient_and_dynamics_amended(
-                            system=system,
-                            initial_state=initial_state,
-                            target_state=target_state,
-                            dt=dt,
-                            num_steps=num_steps,
-                            start_time=start_time,
-                            process_tensor=process_tensors,
-                            control=control,
-                            record_all=record_all,
-                            get_forward_and_backprop_list=get_forward_backprop_list,
-                            subdiv_limit=subdiv_limit,
-                            liouvillian_epsrel=liouvillian_epsrel,
-                            progress_type=progress_type)
-    
-    forward_prop_list = gradient_dynamics.forwardprop_deriv_list[:num_steps-1] # never use last two elements 
-    back_prop_list = gradient_dynamics.backprop_deriv_list[:num_steps-1]
-    mpo_list = gradient_dynamics.mpo_list
-
-    for i,forward_prop_state in enumerate(forward_prop_list):
-
-        current_node= tn.Node(forward_prop_state)
-        current_edges = current_node[:]
-
-        first_derivative_mpo = mpo_list[i]
-        
-        current_node,current_edges = _apply_derivative_pt_mpos(current_node,current_edges,first_derivative_mpo)
-
-        # index numbering corresponds with position in Hessian matrix
-        extended_state_matrix[i][0] = tn.replicate_nodes([current_node])[0]
-
-        first_half_prop,second_half_prop = propagators(i)
-        
-        current_node,current_edges =_apply_hessian_pt_mpos(current_node,current_edges,mpo_list[i+1],first_half_prop,second_half_prop)
-
-        # n_F/B = number of fwd/bwd steps, n_Ex = number of extended steps, 2 mpos applied at start and 1 at end
-        # num_steps = n_F + n_B + n_Ex + 3
-        # n_Ex (min) = i+2 , n_Ex (max) = num_steps - n_F - 3 (last back prop is zero)
-        extended_state_list = _get_extended_state_list(i+2,num_steps-1,current_node,current_edges,process_tensors,propagators) 
-
-        for j,extended_state in enumerate(extended_state_list):
-            extended_state_matrix[i][j+1] = tn.replicate_nodes([extended_state])[0]
-    
-    for i,back_prop_state in enumerate(reversed(back_prop_list)):
-        
-        sub_space=extended_state_matrix[0:,:(i+1)]
-        
-        extended_states=np.fliplr(sub_space).diagonal() 
-        
-        for j,extended_state in enumerate(extended_states): # cycle through columns
-
-            extended_state=tn.Node(extended_state)
-
-            backprop_tensor=tn.Node(back_prop_state)
-            
-            mpo_tensor = mpo_list[i+1]
-
-            for mpo in mpo_tensor:
-
-                extended_state[0] ^ mpo[0]
-
-                mpo[1] ^ backprop_tensor[0]
-
-            hess = extended_state @ mpo @ backprop_tensor
-
-            hessian_matrix[j][i] = tn.replicate_nodes([hess])[0].tensor
-            hessian_matrix[i][j] = tn.replicate_nodes([hess])[0].tensor
-    
-    return hessian_matrix
-
-def compute_gradient_and_dynamics_amended(
-        system: Union[System, TimeDependentSystem],
-        initial_state: Optional[ndarray] = None,
-        target_state: Optional[ndarray] = None,
-        dt: Optional[float] = None,
-        num_steps: Optional[int] = None,
-        start_time: Optional[float] = 0.0,
-        process_tensor: Optional[Union[List[BaseProcessTensor],
-                                       BaseProcessTensor]] = None,
-        control: Optional[Control] = None,
-        record_all: Optional[bool] = True,
-        get_forward_and_backprop_list = True,
-        subdiv_limit: Optional[int] = SUBDIV_LIMIT,
-        liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
-        progress_type: Optional[Text] = None) -> GradientDynamics:
     """
     Compute some objective function and calculate its gradient w.r.t.
     some control parameters, accounting
@@ -731,8 +292,7 @@ def compute_gradient_and_dynamics_amended(
     forwardprop_derivs_list = []
     forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
 
-    # only need to forward propagate n-1 steps as we already have initial state + we are inserting mpo later
-    for step in range(num_steps-1): 
+    for step in range(num_steps): 
         # -- apply pre measurement control --
         pre_measurement_control, post_measurement_control = controls(step)
  
@@ -778,6 +338,8 @@ def compute_gradient_and_dynamics_amended(
         
         # time-slice taken AFTER second half prop.
         forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
+
+    del forwardprop_derivs_list[-1] # Don't need last element of forwardprop for derivative (MPO insertion)
 
     pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
 
@@ -851,22 +413,9 @@ def compute_gradient_and_dynamics_amended(
     deriv = forwardprop_tensor @ backprop_tensor
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
 
-
-
-    # note it prob makes sense to delete the plus one here, which would remove
-    # the -1s in the indices inside the for loop. Might screw up the final pre
-    # node for the Nth step, because if this +1 was here then the final pre node
-    # would be -1. this might be a symptom of a bug, TODO: Investigate.
-
-    # propagation cut off after MPO application:
-    # Forwardprop list: initial_state, initial_state+1,...,initial_state+n (+1:one propagation as defined)
-    # Backprop list: final_state, final_state-1,..., (-1:one back-propagation)
-    # Deriv list: initial_state+n+final_state, initial_state-1+(n-1)+final_state, ... , initial_state-n+initial_state
-    # We start at n-1 because the initial+n and final states can be immediately combined outside of loop
-
     # propagation cut off after 3/4 propagator application: (amended)
-    # Forwardprop list: initial_state, initial_state+1,...,initial_state+(n-1) (+1:one propagation as defined)
-    # Backprop list: final_state, final_state-1,..., (-1:one back-propagation)
+    # Forwardprop list: initial_state, initial_state+1,...,initial_state+(n-1) (+1= one propagation = pre_node + mpo + post_node)
+    # Backprop list: final_state, final_state-1,..., (-1= one back-propagation = post_node + mpo + pre_node)
     # Deriv list: initial_state+(n-1)+M+final_state, initial_state+(n-2)+M+final_state-1, ... , initial_state-(n-1)+M+initial_state (+M:relevant MPO)
     # We take n to be the step the mpo is taken from
 
@@ -945,18 +494,13 @@ def compute_gradient_and_dynamics_amended(
     else:
         times = [start_time + len(states)*dt]
 
+    dynamics_instance = Dynamics(times=list(times),states=states)
+
     if get_forward_and_backprop_list is False:
         forwardprop_derivs_list = None
         backprop_derivs_list = None
 
-    return GradientDynamics(times=list(times),
-            states=states,
-            forwardprop_deriv_list=forwardprop_derivs_list,
-            backprop_deriv_list=backprop_derivs_list,
-            deriv_list=deriv_list_reversed,
-            mpo_list=pt_mpos_list)
->>>>>>> extended_propagation
-
+    return deriv_list_reversed, dynamics_instance
 
 def compute_dynamics_with_field(
         mean_field_system: MeanFieldSystem,
@@ -1501,7 +1045,7 @@ def _apply_caps(current_node, current_edges, caps):
 
 def _apply_pt_mpos(current_node, current_edges, pt_mpos):
     """
-    apply mpos for forward propagation
+    Apply MPO for forward propagation step
 
         before mpo application:
             [1]
@@ -1554,8 +1098,7 @@ def _apply_pt_mpos(current_node, current_edges, pt_mpos):
 
 def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
     """
-    derivates not applied the same way as in forwardprop. Need to leave bond edge aswell as 
-        three system edges open:
+    Apply MPO corresponding to the time-step of the propagators the derivative is being taken w.r.t.
 
         before mpo application:
             [1]
@@ -1624,108 +1167,6 @@ def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
         current_node.reorder_edges(current_edges)
 
     return current_node,current_edges
-
-def _apply_hessian_pt_mpos(current_node,current_edges,pt_mpos,first_half_prop,second_half_prop):
-    """
-    need to apply mpo and propagator to state to prepare state for forward propagation
-
-        before mpo+prop application:
-            [1]
-            |        [3]
-            |        /
-        |---------| /
-        |         |/
-        |         |\       
-        |---------| \        
-            |        \     
-            |        [2]
-            [0]
-
-            
-            [0]
-            |         [3] post_mpo_edge
-            |        /
-        |---------| /
-        |         |/
-        |         |\       
-        |---------| \         
-            |        \        
-            |         [2] pre_mpo_edge
-            |
-            |
-            |
-            |        [1] prev_prop_edge
-            |         |       
-                      | 
-
-        after mpo+prop application:
-            [0] new bond edge
-            |        postprop[n+1]---[5]  post_prop_edge
-            |        /
-        |---------| /
-        |         |/
-        |  n+1    |\       
-        |---------| \        
-            |        \     
-            |        preprop[n+1]---[4] pre_prop_edge
-            |
-            |         [3] post_mpo_edge
-            |        /
-        |---------| /
-        |         |/
-        |   n     |\       
-        |---------| \         
-            |        \        
-            |         [2] pre_mpo_edge
-            |
-            |
-            |
-            |        [1] prev_prop_edge
-            |         |       
-            |         | 
-
-    """
-    for i,pt_mpo in enumerate(pt_mpos):
-        if pt_mpo is None:
-            continue
-
-        pt_mpo_node=tn.Node(pt_mpo)
-
-        new_bond_edge=pt_mpo_node[1]
-        post_prop_edge = pt_mpo_node[3]
-        pre_prop_edge = pt_mpo_node[2]
-        prev_prop_edge = current_edges[1]
-        pre_mpo_edge=current_edges[2]
-        post_mpo_edge=current_edges[3]
-
-
-        new_bond_edge.name="bond edge"
-        post_prop_edge.name = "post prop edge"
-        pre_prop_edge.name = "pre prop edge"
-
-
-        current_edges[i] ^ pt_mpo_node[0]
-        # don't perform contraction over system edges
-
-        current_node = current_node @ pt_mpo_node
-        current_edges = current_node[:]
-
-        current_edges[0] = new_bond_edge
-        current_edges[5] = post_prop_edge
-        current_edges[4]=pre_prop_edge
-        current_edges[3] = post_mpo_edge
-        current_edges[2]=pre_mpo_edge
-        current_edges[1]=prev_prop_edge
-
-        current_node.reorder_edges(current_edges)
-
-        # need to apply in this order as system super operator is applied to last index
-        current_node,current_edges=_apply_system_superoperator(current_node,current_edges,second_half_prop)
-        current_node,current_edges[:-1]=_apply_system_superoperator(current_node,current_edges[:-1],first_half_prop)
-
-    return current_node,current_edges
-
-
 
 # -- compute correlations ------------------------------------------------
 
