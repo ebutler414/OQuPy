@@ -42,6 +42,7 @@ Indices = Union[int, slice, List[Union[int, slice]]]
 
 def compute_dynamics(
         system: ParameterizedSystem,
+        parameters : ndarray,
         initial_state: Optional[ndarray] = None,
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
@@ -50,8 +51,6 @@ def compute_dynamics(
                                        BaseProcessTensor]] = None,
         control: Optional[Control] = None,
         record_all: Optional[bool] = True,
-        subdiv_limit: Optional[int] = SUBDIV_LIMIT,
-        liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
         progress_type: Optional[Text] = None) -> Dynamics:
     """
     Compute the system dynamics for a given system Hamiltonian, accounting
@@ -105,8 +104,7 @@ def compute_dynamics(
     num_envs = len(process_tensors)
 
     # -- prepare propagators --
-    propagators = system.get_propagators(dt, start_time, subdiv_limit,
-                                       liouvillian_epsrel)
+    propagators = system.get_propagators(dt, parameters)
 
     # -- prepare controls --
     def controls(step: int):
@@ -186,6 +184,7 @@ def compute_dynamics(
 
 def compute_gradient_and_dynamics(
         system: ParameterizedSystem,
+        parameters : ndarray,
         initial_state: Optional[ndarray] = None,
         target_state: Optional[ndarray] = None,
         dt: Optional[float] = None,
@@ -258,8 +257,7 @@ def compute_gradient_and_dynamics(
     num_envs = len(process_tensors)
 
     # -- prepare propagators --
-    propagators = system.get_propagators(dt, start_time, subdiv_limit,
-                                       liouvillian_epsrel)
+    propagators = system.get_propagators(dt, parameters)
 
     # -- prepare controls --
     def controls(step: int):
@@ -800,7 +798,7 @@ def _compute_dynamics_input_parse(
     if with_field:
         check_isinstance(system, TimeDependentSystemWithField, "system")
     else:
-        check_isinstance(system, (System, TimeDependentSystem), "system")
+        check_isinstance(system, (System, TimeDependentSystem, ParameterizedSystem), "system")
 
     hs_dim = system.dimension
 

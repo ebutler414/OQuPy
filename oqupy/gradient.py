@@ -25,6 +25,7 @@ from numpy import ndarray, sqrt, zeros
 from oqupy.contractions import compute_gradient_and_dynamics
 from oqupy.process_tensor import BaseProcessTensor
 from oqupy.system import ParameterizedSystem
+from oqupy.config import NpDtype, INTEGRATE_EPSREL, SUBDIV_LIMIT
 
 
 def state_gradient(
@@ -32,7 +33,7 @@ def state_gradient(
         initial_state: ndarray,
         target_state: ndarray,
         process_tensor: BaseProcessTensor,
-        parameters: Tuple[List],
+        parameters: List[Tuple],
         time_steps: Optional[ndarray] = None,
         return_dynamics: Optional[bool] = False,
         return_gradprop: Optional[bool] = False,
@@ -70,6 +71,8 @@ def state_gradient(
         process_tensor,
         parameters)
     
+    start_time=0 # placeholder for now as included in ParameterizedSystem - do we need a start_time?
+    
     grad_prop = fb_prop_result['derivatives']
     dynamics = fb_prop_result['dynamics']
 
@@ -77,15 +80,17 @@ def state_gradient(
         time_steps = range(2*len(process_tensor))
 
     sys_dim_squared = system.dimension**2
-    dprop_dparam_array = zeros(time_steps.size,
+    time_scale = len(time_steps)
+
+    dprop_dparam_array = zeros(time_scale,
                                sys_dim_squared,
                                sys_dim_squared)
     
-    pre_node_list = zeros(time_steps.size,
+    pre_node_list = zeros(time_scale,
                                sys_dim_squared,
                                sys_dim_squared)
     
-    post_node_list = zeros(time_steps.size,
+    post_node_list = zeros(time_scale,
                                sys_dim_squared,
                                sys_dim_squared)
 
@@ -93,9 +98,7 @@ def state_gradient(
         dprop_dparam_array[i]=system.get_propagator_derivatives(
             process_tensor.dt,
             parameters=parameters)
-        pre_node_list[i], post_node_list[i] = system.get_propagators(
-            process_tensor.dt,
-            parameters=parameters)
+        pre_node_list[i], post_node_list[i] = system.get_propagators(process_tensor.dt,parameters)
         # this does not use step, consider whether to change
 
     final_derivs = _chain_rule(
@@ -118,7 +121,7 @@ def forward_backward_propagation(
         initial_state: ndarray,
         target_state: ndarray,
         process_tensor: BaseProcessTensor,
-        parameters: Tuple[List], # unnecessary?
+        parameters: List[Tuple], # unnecessary?
         return_fidelity: Optional[bool] = True,
         return_dynamics: Optional[bool] = False) -> Dict:
     """
@@ -137,6 +140,7 @@ def forward_backward_propagation(
         initial_state=initial_state,
         target_state=target_state,
         process_tensor=process_tensor,
+        parameters=parameters,
         record_all=return_dynamics)
 
     fidelity = None
