@@ -938,42 +938,6 @@ def _get_pt_mpos_backprop(process_tensors: List[BaseProcessTensor], step: int):
         pt_mpos.append(pt_mpo)
     return pt_mpos
 
-def _get_extended_state_list(start_step, end_step, current_node,current_edges,process_tensors,propagators):
-
-    extended_state_list = []
-    if(start_step>end_step):
-        return extended_state_list
-    else:
-        
-        extended_state_list.append(tn.replicate_nodes([current_node])[0])
-
-        for step in range(start_step,end_step): # from i+2 to N-i-2
-
-
-            if step == end_step:
-                break
-
-            # -- propagate one time step --
-            first_half_prop, second_half_prop = propagators(step)
-
-            pt_mpos = _get_pt_mpos(process_tensors, step)
-
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, first_half_prop)
-            current_node, current_edges = _apply_pt_mpos(
-                current_node, current_edges, pt_mpos)
-            
-
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, second_half_prop)
-            
-            current_node.reorder_edges(current_edges)
-            
-            # time-slice taken AFTER second half prop.
-            extended_state_list.append(tn.replicate_nodes([current_node])[0])
-
-        return extended_state_list
-
 
 def _get_pt_mpos_backprop(process_tensors: List[BaseProcessTensor], step: int):
     """same as above but swaps the system legs and internal bond legs

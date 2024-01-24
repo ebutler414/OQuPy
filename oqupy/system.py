@@ -326,10 +326,12 @@ class ParameterizedSystem(BaseSystem):
         def propagators(step: int):
             """Create the system propagators (first and second half) for
             the time step `step`  """
+
             pre_liou=self.liouvillian(*(parameters[2*step]))
             post_liou=self.liouvillian(*(parameters[2*step+1]))
             first_step = expm(pre_liou*dt/2.0)
             second_step = expm(post_liou*dt/2.0)
+
             return first_step, second_step
         return propagators
 
@@ -355,7 +357,7 @@ class ParameterizedSystem(BaseSystem):
     def get_propagator_derivatives(
             self,
             dt: float,
-            parameters: List[Tuple]) -> Callable[[int],Tuple[Tuple,Tuple]]: 
+            parameters: List[Tuple]) -> Callable[[int],Tuple[ndarray,ndarray]]: 
         if self._propagator_derivatives is not None:
             def propagator_derivatives(step: int):
                 pre_params=parameters[2*step]
