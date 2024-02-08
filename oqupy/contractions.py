@@ -184,7 +184,7 @@ def compute_dynamics(
 
 def compute_gradient_and_dynamics(
         system: ParameterizedSystem,
-        parameters : ndarray,
+        parameters : Optional[ndarray]=None,
         initial_state: Optional[ndarray] = None,
         target_state: Optional[ndarray] = None,
         dt: Optional[float] = None,
