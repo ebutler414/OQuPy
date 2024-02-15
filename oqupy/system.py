@@ -299,7 +299,7 @@ class ParameterizedSystem(BaseSystem):
         # input check for Hamiltonian.
         number_of_parameters = len(getfullargspec(hamiltonian).args)
         self._hamiltonian = np.vectorize(hamiltonian)
-        trial_hamiltonian = hamiltonian(*(list([0.5]*number_of_parameters))) # still not sure what this
+        trial_hamiltonian = hamiltonian(*(list([0.5]*number_of_parameters)))
         _check_hamiltonian(trial_hamiltonian)
         dimension = trial_hamiltonian.shape[0]
 

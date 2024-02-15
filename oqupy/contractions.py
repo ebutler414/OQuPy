@@ -41,8 +41,7 @@ Indices = Union[int, slice, List[Union[int, slice]]]
 # -- compute dynamics ---------------------------------------------------------
 
 def compute_dynamics(
-        system: ParameterizedSystem,
-        parameters : ndarray,
+        system: Union[System, TimeDependentSystem],
         initial_state: Optional[ndarray] = None,
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
@@ -51,7 +50,10 @@ def compute_dynamics(
                                        BaseProcessTensor]] = None,
         control: Optional[Control] = None,
         record_all: Optional[bool] = True,
-        progress_type: Optional[Text] = None) -> Dynamics:
+        subdiv_limit: Optional[float] = SUBDIV_LIMIT,
+        liouvillian_epsrel: Optional[float]=INTEGRATE_EPSREL,
+        progress_type: Optional[Text] = None,
+        ) -> Dynamics:
     """
     Compute the system dynamics for a given system Hamiltonian, accounting
     (optionally) for interaction with an environment using one or more
@@ -104,7 +106,7 @@ def compute_dynamics(
     num_envs = len(process_tensors)
 
     # -- prepare propagators --
-    propagators = system.get_propagators(dt, parameters)
+    propagators = system.get_propagators(dt, start_time, subdiv_limit, liouvillian_epsrel)
 
     # -- prepare controls --
     def controls(step: int):
