@@ -107,7 +107,7 @@ def forward_backward_propagation(
         process_tensor: BaseProcessTensor,
         parameters: List[Tuple], # unnecessary?
         return_fidelity: Optional[bool] = True,
-        return_dynamics: Optional[bool] = False) -> Dict:
+        return_dynamics: Optional[bool] = True) -> Dict:
     """
     ToDo:
     the return dictionary has the fields:

@@ -197,8 +197,7 @@ def compute_gradient_and_dynamics(
         control: Optional[Control] = None,
         record_all: Optional[bool] = True,
         get_forward_and_backprop_list = False,
-        subdiv_limit: Optional[int] = SUBDIV_LIMIT,
-        liouvillian_epsrel: Optional[float] = INTEGRATE_EPSREL,
+
         progress_type: Optional[Text] = None) -> Tuple[List,Dynamics]:
     """
     Compute some objective function and calculate its gradient w.r.t.
@@ -322,7 +321,7 @@ def compute_gradient_and_dynamics(
 
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
-        # save mpo tensor for this step    
+        # -- save mpo tensor for this step --    
         for pt_mpo in pt_mpos:
             pt_mpo_node=tn.Node(pt_mpo)
 
@@ -341,15 +340,8 @@ def compute_gradient_and_dynamics(
 
     del forwardprop_derivs_list[-1] # Don't need last element of forwardprop for derivative (MPO insertion)
 
-    pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
-
-    for pt_mpo in pt_mpos:
-        pt_mpo_node = tn.Node(pt_mpo) 
-            
-    pt_mpos_list.append(tn.replicate_nodes([pt_mpo_node]))
-
     # -- extract last state --
-    caps = _get_caps(process_tensors, step+1)
+    caps = _get_caps(process_tensors, num_steps)
     state_tensor = _apply_caps(current_node, current_edges, caps)
     final_state = state_tensor.reshape(hs_dim, hs_dim)
     states.append(final_state)
@@ -381,7 +373,7 @@ def compute_gradient_and_dynamics(
     target_ndarray = target_state.T
     target_ndarray = target_ndarray.reshape(hs_dim**2)
     target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
-    current_node = tn.Node(np.outer(final_cap,target_ndarray)) # might be a wire crossed or something
+    current_node = tn.Node(np.outer(final_cap,target_ndarray)) 
     current_edges = current_node[:]
 
     combined_deriv_list = []
@@ -490,6 +482,7 @@ def compute_gradient_and_dynamics(
 
     # -- create dynamics object --
     if record_all:
+        print(len(states))
         times = start_time + np.arange(len(states))*dt
     else:
         times = [start_time + len(states)*dt]
