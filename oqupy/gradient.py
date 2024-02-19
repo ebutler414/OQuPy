@@ -37,7 +37,8 @@ def state_gradient(
         time_steps: Optional[ndarray] = None,
         return_dynamics: Optional[bool] = False,
         return_gradprop: Optional[bool] = False,
-        return_gradparam: Optional[bool] = False
+        return_gradparam: Optional[bool] = False,
+        return_fidelity: Optional[bool] = False
         ) -> Dict:
     """
     Compute system dynamics and gradient of an objective function with respect to a parameterized Hamiltonian,
@@ -69,11 +70,14 @@ def state_gradient(
         initial_state,
         target_state,
         process_tensor,
-        parameters)
+        parameters,
+        return_fidelity=return_fidelity,
+        return_dynamics=return_dynamics)
     
     
     grad_prop = fb_prop_result['derivatives']
     dynamics = fb_prop_result['dynamics']
+    fidelity = fb_prop_result['fidelity']
 
     if time_steps is None:
         time_steps = range(2*len(process_tensor))
@@ -95,7 +99,8 @@ def state_gradient(
         'final state':dynamics.states[-1],
         'gradprop':grad_prop,
         'gradient':final_derivs,
-        'dynamics':dynamics
+        'dynamics':dynamics,
+        'fidelity':fidelity
     }
     
     return return_dict

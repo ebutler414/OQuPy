@@ -63,16 +63,18 @@ def hamiltonian(x, y, z):
         h += var * op.sigma(var_name)
     return h
 
-parametrized_system = oqupy.ParametrizedSystem(hamiltonian)
+parametrized_system = oqupy.ParameterizedSystem(hamiltonian)
 
 # --- Compute fidelity, dynamics, and fidelity gradient -----------------------
 
-fidelity_dict = oqupy.fidelity_gradient(
+from oqupy.gradient import state_gradient
+
+fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
         target_state=target_state,
         process_tensor=process_tensor,
-        parameters=(x0,y0,z0),
+        parameters=list(zip(x0,y0,z0)),
         return_fidelity=True,
         return_dynamics=True)
 
