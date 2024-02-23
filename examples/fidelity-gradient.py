@@ -47,7 +47,8 @@ correlations = oqupy.PowerLawSD(
     cutoff=omega_cutoff,
     cutoff_type='exponential',
     temperature=temperature)
-bath = oqupy.Bath(0.5 * op.sigma('y'), correlations)
+bath = oqupy.Bath(0.5
+                   * op.sigma('y'), correlations)
 pt_tempo_parameters = oqupy.TempoParameters(
     dt=dt,
     epsrel=pt_epsrel,
