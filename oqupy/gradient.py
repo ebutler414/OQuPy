@@ -110,7 +110,7 @@ def forward_backward_propagation(
         initial_state: ndarray,
         target_state: ndarray,
         process_tensor: BaseProcessTensor,
-        parameters: List[Tuple], # unnecessary?
+        parameters: List[Tuple], 
         return_fidelity: Optional[bool] = True,
         return_dynamics: Optional[bool] = True) -> Dict:
     """
