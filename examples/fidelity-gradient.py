@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import oqupy
 import oqupy.operators as op
 
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 from typing import List,Tuple
 
 
@@ -29,7 +29,7 @@ pt_dkmax = 40
 pt_epsrel = 1.0e-5
 
 # -- initial and target state --
-initial_state = op.spin_dm('z-')
+initial_state = op.spin_dm('x-')
 target_state = op.spin_dm('z+')
 
 # -- initial parameter guess --
@@ -47,7 +47,7 @@ correlations = oqupy.PowerLawSD(
     cutoff=omega_cutoff,
     cutoff_type='exponential',
     temperature=temperature)
-bath = oqupy.Bath(0.5
+bath = oqupy.Bath(0
                    * op.sigma('y'), correlations)
 pt_tempo_parameters = oqupy.TempoParameters(
     dt=dt,
@@ -72,8 +72,7 @@ parametrized_system = oqupy.ParameterizedSystem(hamiltonian)
 
 # --- Compute fidelity, dynamics, and fidelity gradient -----------------------
 
-from oqupy.gradient import state_gradient, forward_backward_propagation
-from oqupy.contractions import compute_dynamics
+from oqupy.gradient import state_gradient
 
 fidelity_dict = state_gradient(
         system=parametrized_system,
@@ -86,7 +85,9 @@ fidelity_dict = state_gradient(
 
 print(f"the fidelity is {fidelity_dict['fidelity']}")
 print(f"the fidelity gradient is {fidelity_dict['gradient']}")
-t, s_x = fidelity_dict['dynamics'].expectations(op.sigma("x"))
+t, s_x = fidelity_dict['dynamics'].expectations(op.sigma("x"), label='x')
+t, s_y = fidelity_dict['dynamics'].expectations(op.sigma("x"))
+t, s_z = fidelity_dict['dynamics'].expectations(op.sigma("x"))
 plt.plot(t,s_x)
 
 # ----------- Optimisation of control parameters w.r.t. infidelity ---------------
@@ -105,6 +106,17 @@ def unflatten_list(flat_list):
     assert np.shape(flat_list) == (2*3*process_tensor.__len__(),)
     parameter_list = np.reshape(flat_list,(2*process_tensor.__len__(),3))
     return parameter_list
+
+def sum_adjacent_elements(list:List)->List:
+    # maybe this goes in helpers.py or utils.py?
+    half_the_size = len(list) / 2
+    assert (half_the_size).is_integer(), \
+        'if one output from both pre and post node is given, result must be even'
+    half_the_size = int(half_the_size)
+
+    # https://stackoverflow.com/a/29392016
+    summed_array = np.reshape(list,(half_the_size,2)).sum(axis=1)
+    return summed_array
 
 def infidelity(parameter_list_flat):
 
@@ -130,19 +142,36 @@ def fidelity_jacobian(parameter_list_flat):
         target_state=target_state,
         process_tensor=process_tensor,
         parameters=parameter_list_var)
+    
+    fidelity_jacobian = flatten_list(fidelity_dict['gradient'])
 
-    fidelity_jacobian = fidelity_dict['gradient']
+    print(len(fidelity_jacobian))
 
-    fort_jac =np.asfortranarray(flatten_list(fidelity_jacobian))
+    fidelity_jacobian = sum_adjacent_elements(fidelity_jacobian)
+
+    print(len(fidelity_jacobian))
+
+    piecewiseconst_jacobian = [0]*120
+
+    for i,element in enumerate(fidelity_jacobian):
+        piecewiseconst_jacobian[2*i] = fidelity_jacobian[i]
+        piecewiseconst_jacobian[2*i+1] = fidelity_jacobian[i]
+
+    fort_jac =np.asfortranarray(piecewiseconst_jacobian)
 
     return fort_jac
 
+lower_bound = -np.pi 
+upper_bound = np.pi 
+
+bounds = Bounds(lb=lower_bound,ub=upper_bound)
 
 optimization_result = minimize(
                         fun=infidelity,
                         x0=flatten_list(parameter_list),
                         method='L-BFGS-B',
                         jac=fidelity_jacobian,
+                        bounds=bounds,
                         callback=infidelity,
                         options = {'disp':True}
 )
@@ -181,6 +210,8 @@ ax1.plot(times,optimized_z,label='z')
 
 ax1.legend()
 
+from scipy.linalg import sqrtm
+
 dynamics = optimized_dynamics['dynamics']
 
 hs_dim = 2
@@ -188,17 +219,13 @@ v_final_state = target_state.reshape(hs_dim**2)
 fidelity=[]
 
 for state in dynamics.states:
-    v_state = state.reshape(hs_dim**2)
-    fidelity.append(v_state@v_final_state.T)
-
+    sqrt_final_state =sqrtm(state)
+    intermediate_1 = sqrt_final_state @ target_state
+    inside_of_sqrt = intermediate_1 @ sqrt_final_state
+    fidelity.append((sqrtm(inside_of_sqrt).trace())**2)
 times = np.arange(0,21)
 
 ax2.plot(times,fidelity)
-
-#print(f"the fidelity is {fidelity_dict['fidelity']}")
-#print(f"the fidelity gradient is {fidelity_dict['gradient']}")
-#t, s_x = fidelity_dict['dynamics'].expectations(op.sigma("x"))
-#plt.plot(t,s_x)
 
 plt.legend()
 

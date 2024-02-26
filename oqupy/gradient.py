@@ -26,7 +26,7 @@ from oqupy.contractions import compute_gradient_and_dynamics
 from oqupy.process_tensor import BaseProcessTensor
 from oqupy.system import ParameterizedSystem
 from oqupy.config import NpDtype, INTEGRATE_EPSREL, SUBDIV_LIMIT
-
+from scipy.linalg import sqrtm
 
 def state_gradient(
         system: ParameterizedSystem,
@@ -134,10 +134,10 @@ def forward_backward_propagation(
 
     fidelity = None
     if return_fidelity:
-        sqrt_final_state = sqrt(dynamics.states[-1])
+        sqrt_final_state = sqrtm(dynamics.states[-1])
         intermediate_1 = sqrt_final_state @ target_state
         inside_of_sqrt = intermediate_1 @ sqrt_final_state
-        fidelity = (sqrt(inside_of_sqrt).trace())**2
+        fidelity = (sqrtm(inside_of_sqrt).trace())**2
 
     return_dict = {
         'derivatives':adjoint_tensors,
