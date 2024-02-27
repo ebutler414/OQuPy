@@ -136,7 +136,7 @@ def forward_backward_propagation(
     fidelity = None
     if return_fidelity:
         sqrt_final_state = sqrtm(dynamics.states[-1])
-        intermediate_1 = sqrt_final_state @ target_state
+        intermediate_1 = sqrt_final_state @ target_state.T # we input the transpose of the target state, therefore for this calculation to be correct must transpose
         inside_of_sqrt = intermediate_1 @ sqrt_final_state
         fidelity = (sqrtm(inside_of_sqrt).trace())**2
 

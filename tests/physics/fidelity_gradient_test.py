@@ -77,7 +77,7 @@ def test_fidelity_gradient():
     gradient_dict = state_gradient(
             system=parameterized_system,
             initial_state=initial_state,
-            target_state=target_state,
+            target_state=target_state.T,
             process_tensor=process_tensor,
             parameters=list(zip(x0,y0,z0)),
             return_fidelity=True,

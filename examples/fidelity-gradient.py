@@ -43,7 +43,7 @@ pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
-target_state = op.spin_dm('x+').T
+target_state = op.spin_dm('x+') # Need to transpose the target state in the fidelity calculation
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
@@ -110,7 +110,7 @@ from oqupy.gradient import state_gradient
 fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_state=target_state.T,
         process_tensor=process_tensor,
         parameters=parameter_list,
         time_steps=timesteps,
@@ -165,7 +165,7 @@ def infidelity(parameter_list_flat):
 
     return_dict = state_gradient(system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_state=target_state.T,
         process_tensor=process_tensor,
         parameters=parameter_list_var,
         time_steps=timesteps,
@@ -182,7 +182,7 @@ def fidelity_jacobian(parameter_list_flat):
     fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_state=target_state.T,
         process_tensor=process_tensor,
         time_steps=timesteps,
         parameters=parameter_list_var)
@@ -236,7 +236,7 @@ optimized_parameters = unflatten_list(optimized_parameters_flat)
 optimized_dynamics = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_state=target_state.T,
         process_tensor=process_tensor,
         parameters=optimized_parameters,
         time_steps=timesteps,
