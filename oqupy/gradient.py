@@ -63,7 +63,10 @@ def state_gradient(
 
     """
 
-    # compute propagator list and pass this to forward_backward_propagation, 
+    # compute propagator list and pass this to forward_backward_propagation
+
+    if time_steps is None:
+        time_steps = range(2*len(process_tensor)) 
 
     fb_prop_result = forward_backward_propagation(
         system,
@@ -71,6 +74,7 @@ def state_gradient(
         target_state,
         process_tensor,
         parameters,
+
         return_fidelity=return_fidelity,
         return_dynamics=return_dynamics)
     
@@ -78,9 +82,6 @@ def state_gradient(
     grad_prop = fb_prop_result['derivatives']
     dynamics = fb_prop_result['dynamics']
     fidelity = fb_prop_result['fidelity']
-
-    if time_steps is None:
-        time_steps = range(2*len(process_tensor))
 
     num_parameters = len(parameters[0])
     dt = process_tensor.dt
@@ -92,7 +93,7 @@ def state_gradient(
         adjoint_tensor=grad_prop,
         dprop_dparam=get_prop_derivatives,
         propagators=get_half_props,
-       num_half_steps=2*len(process_tensor),
+       num_half_steps=len(time_steps),
        num_parameters=num_parameters)
     
     return_dict = {
