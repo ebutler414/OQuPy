@@ -43,7 +43,7 @@ pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
-target_state = op.spin_dm('x+')
+target_state = op.spin_dm('x+').T
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
@@ -57,7 +57,7 @@ num_params = len(parameter_list[0])
 
 num_steps = total_steps
 
-end_step= 25
+end_step= total_steps
 
 if end_step == 0 or end_step == total_steps: 
     num_steps=total_steps

@@ -164,10 +164,10 @@ def _chain_rule(
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
 
-            target_deriv_node[0] ^ pre_node[0]
-            target_deriv_node[1] ^ pre_node[1]
-            target_deriv_node[2] ^ post_node[0] 
-            target_deriv_node[3] ^ post_node[1] 
+            target_deriv_node[0] ^ pre_node[0] # 0
+            target_deriv_node[1] ^ pre_node[1] #1
+            target_deriv_node[2] ^ post_node[1] # 1
+            target_deriv_node[3] ^ post_node[0] # 0
 
             final_node = target_deriv_node @ pre_node \
                             @ post_node
