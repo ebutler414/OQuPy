@@ -332,11 +332,6 @@ class ParameterizedSystem(BaseSystem):
             first_step = expm(pre_liou*dt/2.0)
             second_step = expm(post_liou*dt/2.0)
 
-            print("!!!!!!!!")
-            print(step)
-            print(first_step)
-            print(second_step)
-
             return first_step, second_step
         return propagators
 
