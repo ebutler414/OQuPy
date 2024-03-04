@@ -386,9 +386,7 @@ def compute_gradient_and_dynamics(
         backprop_tensor = tn.replicate_nodes([current_node])[0]
         backprop_derivs_list = [tn.replicate_nodes([current_node])[0]]
         # note now backprop_deriv_list is unnecessary
-<<<<<<< HEAD
     
-
     pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
 
     fwd_edges = forwardprop_tensor[:]
@@ -399,38 +397,6 @@ def compute_gradient_and_dynamics(
     deriv = deriv_forwardprop_tensor @ backprop_tensor
 
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
-=======
-
-    mpo_tensor=pt_mpos_list[num_steps-1]
-    deriv= tn.Node(forwardprop_tensor)
-    deriv_edges = deriv[:]
-
-    deriv, deriv_edges = _apply_derivative_pt_mpos(deriv,deriv_edges,mpo_tensor)
-    deriv_edges[0] ^ backprop_tensor[0]
-    
-    deriv_total = deriv @ backprop_tensor
-    combined_deriv_list.append(tn.replicate_nodes([deriv_total])[0].tensor)
-
-    # comparison to old code
-
-    from itertools import permutations
-
-    # for i,j in permutations([0,1,2,3],r=2):
-    #     for k,l in permutations([0,1],r=2):
-    #         test_node = tn.replicate_nodes([deriv_total])[0]
-    #         test_edges = test_node[:]
-    #         pre_prop,post_prop = propagators(num_steps-1)
-    #         pre_prop_node = tn.Node(pre_prop)
-    #         test_edges[i] ^ pre_prop_node[k]
-    #         test_edges[j] ^ pre_prop_node[l]
-
-    #         deriv_comp = test_node @ pre_prop_node
-    #         comparison_tensor = deriv_comp.tensor
-
-    #         print("i=",i," j=",j," k=",k)
-    #         print(comparison_tensor)
-    #         print("end")
->>>>>>> 7f2de2563151dbd72fe1ef995640f9022d38b24b
 
     # propagation cut off after 3/4 propagator application: (amended)
     # Forwardprop list: initial_state, initial_state+1,...,initial_state+(n-1) (+1= one propagation = pre_node + mpo + post_node)
@@ -492,20 +458,12 @@ def compute_gradient_and_dynamics(
             del forwardprop_derivs_list[step]
             backprop_tensor =  tn.replicate_nodes([current_node])[0]
 
-<<<<<<< HEAD
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
         fwd_edges = forwardprop_tensor[:]
         deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
           
         fwd_edges[0] ^ backprop_tensor[0] 
-=======
-        mpo_tensor = pt_mpos_list[step]
-        temp_edges = forwardprop_tensor[:]
-        deriv_forwardprop_tensor,deriv_edges = _apply_derivative_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
-          
-        deriv_edges[0] ^ backprop_tensor[0] 
->>>>>>> 7f2de2563151dbd72fe1ef995640f9022d38b24b
 
         deriv = deriv_forwardprop_tensor @ backprop_tensor
 

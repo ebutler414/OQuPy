@@ -43,11 +43,7 @@ pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
-<<<<<<< HEAD
-target_state = op.spin_dm('x+') # Need to transpose the target state in the fidelity calculation
-=======
 target_state = op.spin_dm('x+')
->>>>>>> 382f449 (debugging parameterized system)
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
