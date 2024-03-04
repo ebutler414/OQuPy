@@ -317,7 +317,6 @@ def compute_gradient_and_dynamics(
 
         # -- propagate one time step --
         first_half_prop, second_half_prop = propagators(step)
-        print(np.around(first_half_prop,3))
 
         pt_mpos = _get_pt_mpos(process_tensors, step)
 

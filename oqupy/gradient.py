@@ -136,7 +136,7 @@ def forward_backward_propagation(
     fidelity = None
     if return_fidelity:
         sqrt_final_state = sqrtm(dynamics.states[-1])
-        intermediate_1 = sqrt_final_state @ target_state.T # we input the transpose of the target state, therefore for this calculation to be correct must transpose
+        intermediate_1 = sqrt_final_state @ target_state
         inside_of_sqrt = intermediate_1 @ sqrt_final_state
         fidelity = (sqrtm(inside_of_sqrt).trace())**2
 
@@ -161,8 +161,8 @@ def _chain_rule(
             post_prop):
 
             target_deriv_node = tn.Node(target_deriv)
-            pre_node=tn.Node(pre_prop.T)
-            post_node=tn.Node(post_prop.T)
+            pre_node=tn.Node(pre_prop)
+            post_node=tn.Node(post_prop)
 
             target_deriv_node[1] ^ pre_node[0] 
             target_deriv_node[3] ^ pre_node[1] 
@@ -183,7 +183,6 @@ def _chain_rule(
         first_half_prop,second_half_prop=propagators(i//2)
         first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(i//2) # returns two lists containing the derivatives w.r.t. each parameter
 
-        print(first_half_prop_derivs[0])
         for j in range(0,num_parameters):
             
             total_derivs[i][j] = combine_derivs(
