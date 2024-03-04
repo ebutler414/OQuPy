@@ -316,6 +316,7 @@ def compute_gradient_and_dynamics(
 
         # -- propagate one time step --
         first_half_prop, second_half_prop = propagators(step)
+        print(np.around(first_half_prop,3))
 
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
@@ -392,8 +393,8 @@ def compute_gradient_and_dynamics(
 
     deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
 
-    forwardprop_tensor[0] ^ backprop_tensor[0]
-    deriv = forwardprop_tensor @ backprop_tensor
+    fwd_edges[0] ^ backprop_tensor[0]
+    deriv = deriv_forwardprop_tensor @ backprop_tensor
 
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
 
@@ -458,12 +459,8 @@ def compute_gradient_and_dynamics(
 
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
-        # -- save mpo tensor for this step --    
-        for pt_mpo in pt_mpos:
-            pt_mpo_node=tn.Node(pt_mpo)
-
         fwd_edges = forwardprop_tensor[:]
-        deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpo_node)
+        deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
           
         fwd_edges[0] ^ backprop_tensor[0] 
 
@@ -886,49 +883,6 @@ def _get_pt_mpos(process_tensors: List[BaseProcessTensor], step: int): # fetches
         pt_mpo = process_tensors[i].get_mpo_tensor(step)
         pt_mpos.append(pt_mpo)
     return pt_mpos
-
-def _get_pt_mpos_backprop(process_tensors: List[BaseProcessTensor], step: int):
-    """same as above but swaps the system legs and internal bond legs
-    before returning MPOs.
-
-       [forwardprop]
-         [1]
-          |       [3]
-          |      /
-    |---------| /
-    |         |/
-    |         |\       propagate
-    |---------| \         ^
-          |      \        |
-          |       [2]
-         [0]
-
-          |
-          |
-         \ /
-          v
-       [backprop]
-         [0]
-          |       [3]
-          |      /
-    |---------| /
-    |         |/
-    |         |\       propagate
-    |---------| \         ^
-          |      \        |
-          |       [2]
-         [1]
-    """
-    pt_mpos = []
-    for i in range(len(process_tensors)):
-        pt_mpo = process_tensors[i].get_mpo_tensor(step)
-        # now swap axes so propagating upwards on the PT diagram propagates
-        # *backwards* in time
-        pt_mpo = np.swapaxes(pt_mpo,0,1) # internal bond legs
-        pt_mpo = np.swapaxes(pt_mpo,2,3) # system propagator legs
-        pt_mpos.append(pt_mpo)
-    return pt_mpos
-
 
 def _get_pt_mpos_backprop(process_tensors: List[BaseProcessTensor], step: int):
     """same as above but swaps the system legs and internal bond legs

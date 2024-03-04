@@ -165,7 +165,7 @@ def infidelity(parameter_list_flat):
 
     return_dict = state_gradient(system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_state=target_state,
         process_tensor=process_tensor,
         parameters=parameter_list_var,
         time_steps=timesteps,
