@@ -286,12 +286,10 @@ def compute_gradient_and_dynamics(
     prog_bar = get_progress(progress_type)(num_steps, title)
     prog_bar.enter()
 
-    pt_mpos_list = []
-
     forwardprop_derivs_list = []
     forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
 
-    for step in range(num_steps): 
+    for step in range(num_steps+1): 
         # -- apply pre measurement control --
         pre_measurement_control, post_measurement_control = controls(step)
  
@@ -320,12 +318,6 @@ def compute_gradient_and_dynamics(
         first_half_prop, second_half_prop = propagators(step)
 
         pt_mpos = _get_pt_mpos(process_tensors, step)
-
-        # -- save mpo tensor for this step --    
-        for pt_mpo in pt_mpos:
-            pt_mpo_node=tn.Node(pt_mpo)
-
-        pt_mpos_list.append(tn.replicate_nodes([pt_mpo_node])) 
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, first_half_prop)
@@ -370,7 +362,8 @@ def compute_gradient_and_dynamics(
     # not sure if this is correct but to get the final cap,
     final_cap = _get_caps(process_tensors, num_steps)
 
-    target_ndarray = target_state.reshape(hs_dim**2)
+    target_ndarray = target_state.T
+    target_ndarray = target_ndarray.reshape(hs_dim**2)
     target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
     current_node = tn.Node(np.outer(final_cap,target_ndarray)) 
     current_edges = current_node[:]
@@ -392,16 +385,16 @@ def compute_gradient_and_dynamics(
         backprop_derivs_list = [tn.replicate_nodes([current_node])[0]]
         # note now backprop_deriv_list is unnecessary
     
-    mpo_tensor=pt_mpos_list[num_steps-1]
 
-    for mpo in mpo_tensor:
+    pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
 
-        forwardprop_tensor[0] ^ mpo[0]
-        forwardprop_tensor = forwardprop_tensor @ mpo
+    fwd_edges = forwardprop_tensor[:]
 
-    forwardprop_tensor[1] ^ backprop_tensor[0]
+    deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
 
+    forwardprop_tensor[0] ^ backprop_tensor[0]
     deriv = forwardprop_tensor @ backprop_tensor
+
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
 
     # propagation cut off after 3/4 propagator application: (amended)
@@ -410,17 +403,17 @@ def compute_gradient_and_dynamics(
     # Deriv list: initial_state+(n-1)+M+final_state, initial_state+(n-2)+M+final_state-1, ... , initial_state-(n-1)+M+initial_state (+M:relevant MPO)
     # We take n to be the step the mpo is taken from
 
-    for step in reversed(range(1,num_steps)):
+    for step in reversed(range(-1,num_steps-1)):
         # -- now the backpropagation part --
 
         # -- apply pre measurement control --
-        pre_measurement_control, post_measurement_control = controls(step)
+        pre_measurement_control, post_measurement_control = controls(step+1)
 
         if post_measurement_control is not None:
             current_node, current_edges = _apply_system_superoperator(
                 current_node, current_edges, post_measurement_control.T)
 
-        if step == 0: # i think this is correct
+        if step == -1: # i think this is correct
             break
 
         # record_all not necessary for backprop as it's been done in the
@@ -434,8 +427,8 @@ def compute_gradient_and_dynamics(
         # -- propagate one time step --
         # we're propagating backwards so we're actually using the propagators
         # from the next timestep, hence +1 in next line 
-        first_half_prop, second_half_prop = propagators(step)
-        pt_mpos = _get_pt_mpos_backprop(process_tensors, step)
+        first_half_prop, second_half_prop = propagators(step+1)
+        pt_mpos = _get_pt_mpos_backprop(process_tensors, step+1)
 
         for pt_mpo in pt_mpos:
             pt_mpo_node = tn.Node(pt_mpo)
@@ -445,7 +438,7 @@ def compute_gradient_and_dynamics(
         current_node, current_edges = _apply_pt_mpos(
             current_node, current_edges, pt_mpos)
 
-        forwardprop_tensor = forwardprop_derivs_list[step-1]
+        forwardprop_tensor = forwardprop_derivs_list[step]
         
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, first_half_prop.T)
@@ -455,22 +448,26 @@ def compute_gradient_and_dynamics(
             backprop_tensor = tn.replicate_nodes([current_node])[0]
         else:
             # test:
-            if len(forwardprop_derivs_list)-1 != step-1:
+            if len(forwardprop_derivs_list)-1 != step:
                 raise IndexError('These should be equal')
 
             # if we're not keeping the full list, we can delete the
             # forwardprop tensor to save memory
-            del forwardprop_derivs_list[step-1]
+            del forwardprop_derivs_list[step]
             backprop_tensor =  tn.replicate_nodes([current_node])[0]
 
-        mpo_tensor = pt_mpos_list[step-1]
-        temp_edges = forwardprop_tensor[:]
-        deriv_forwardprop_tensor,temp_edges = _apply_derivative_pt_mpos(forwardprop_tensor,temp_edges,mpo_tensor)
+        pt_mpos = _get_pt_mpos(process_tensors, step)
+
+        # -- save mpo tensor for this step --    
+        for pt_mpo in pt_mpos:
+            pt_mpo_node=tn.Node(pt_mpo)
+
+        fwd_edges = forwardprop_tensor[:]
+        deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpo_node)
           
-        temp_edges[0] ^ backprop_tensor[0] 
+        fwd_edges[0] ^ backprop_tensor[0] 
 
         deriv = deriv_forwardprop_tensor @ backprop_tensor
-
 
         combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
 
@@ -1107,7 +1104,7 @@ def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
         pre_mpo_edge.name = "pre mpo edge"
         prev_prop_edge.name = "prop edge"
 
-        current_edges[i] ^ pt_mpo_node[0]
+        current_edges[0] ^ pt_mpo_node[0]
         
         # don't perform contraction over system edges
 
