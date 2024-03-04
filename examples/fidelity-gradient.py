@@ -43,7 +43,11 @@ pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
+<<<<<<< HEAD
 target_state = op.spin_dm('x+') # Need to transpose the target state in the fidelity calculation
+=======
+target_state = op.spin_dm('x+')
+>>>>>>> 382f449 (debugging parameterized system)
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
@@ -134,14 +138,12 @@ plt.legend()
 # ----------- Optimisation of control parameters w.r.t. infidelity ---------------
 
 def flatten_list(parameter_list):
-    print(np.shape(parameter_list))
     assert np.shape(parameter_list) == (2*num_steps,num_params)
     parameter_list_flat = [
     x
     for xs in parameter_list
     for x in xs
     ]
-    print(np.shape(parameter_list_flat))
     return parameter_list_flat
 
 def unflatten_list(flat_list):
@@ -189,17 +191,16 @@ def fidelity_jacobian(parameter_list_flat):
     
     fidelity_jacobian = flatten_list(fidelity_dict['gradient'])
  
-    #fidelity_jacobian = sum_adjacent_elements(fidelity_jacobian)
+    fidelity_jacobian = sum_adjacent_elements(fidelity_jacobian)
 
-    #piecewiseconst_jacobian = [0]*2*num_params*num_steps
+    piecewiseconst_jacobian = [0]*2*num_params*num_steps
 
-    '''
+    # the ordering of the half propagator derivatives is arbitary so doesn't make sense to optimise w.r.t. them
     for i,element in enumerate(fidelity_jacobian):
         piecewiseconst_jacobian[2*i] = fidelity_jacobian[i]
         piecewiseconst_jacobian[2*i+1] = fidelity_jacobian[i]
-    '''
 
-    fort_jac =np.asfortranarray(fidelity_jacobian)
+    fort_jac =np.asfortranarray(piecewiseconst_jacobian)
 
     return -fort_jac.real
 
