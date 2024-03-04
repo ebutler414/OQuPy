@@ -163,10 +163,17 @@ def _chain_rule(
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
 
+<<<<<<< HEAD
             target_deriv[0] ^ pre_node[0] 
             target_deriv[1] ^ pre_node[1] 
             target_deriv[2] ^ post_node[0] 
             target_deriv[3] ^ post_node[1] 
+=======
+            target_deriv_node[0] ^ pre_node[0] 
+            target_deriv_node[1] ^ pre_node[1] 
+            target_deriv_node[2] ^ post_node[0] 
+            target_deriv_node[3] ^ post_node[1] 
+>>>>>>> 3f69aff (testing gradient)
 
             final_node = target_deriv @ pre_node \
                             @ post_node
