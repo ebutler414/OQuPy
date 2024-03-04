@@ -160,16 +160,15 @@ def _chain_rule(
             pre_prop,
             post_prop):
 
-            target_deriv_node = tn.Node(target_deriv)
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
 
-            target_deriv_node[1] ^ pre_node[0] 
-            target_deriv_node[3] ^ pre_node[1] 
-            target_deriv_node[0] ^ post_node[0] 
-            target_deriv_node[2] ^ post_node[1] 
+            target_deriv[0] ^ pre_node[0] 
+            target_deriv[1] ^ pre_node[1] 
+            target_deriv[2] ^ post_node[0] 
+            target_deriv[3] ^ post_node[1] 
 
-            final_node = target_deriv_node @ pre_node \
+            final_node = target_deriv @ pre_node \
                             @ post_node
 
             tensor = final_node.tensor
@@ -181,18 +180,19 @@ def _chain_rule(
     for i in range(0,num_half_steps-1,2): # populating two elements each step
             
         first_half_prop,second_half_prop=propagators(i//2)
+        
         first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(i//2) # returns two lists containing the derivatives w.r.t. each parameter
 
         for j in range(0,num_parameters):
             
             total_derivs[i][j] = combine_derivs(
                             adjoint_tensor[i//2],
-                            first_half_prop,
+                            first_half_prop.T,
                             second_half_prop_derivs[j].T)
 
             total_derivs[i+1][j] = combine_derivs(
                             adjoint_tensor[i//2],
                             first_half_prop_derivs[j].T,
-                            second_half_prop)
+                            second_half_prop.T)
 
     return total_derivs

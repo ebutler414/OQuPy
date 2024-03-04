@@ -110,7 +110,7 @@ from oqupy.gradient import state_gradient
 fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_state=target_state,
         process_tensor=process_tensor,
         parameters=parameter_list,
         time_steps=timesteps,
@@ -193,8 +193,8 @@ def fidelity_jacobian(parameter_list_flat):
 
     # the ordering of the half propagator derivatives is arbitary so doesn't make sense to optimise w.r.t. them
     for i,element in enumerate(fidelity_jacobian):
-        piecewiseconst_jacobian[2*i] = fidelity_jacobian[i]
-        piecewiseconst_jacobian[2*i+1] = fidelity_jacobian[i]
+         piecewiseconst_jacobian[2*i] = fidelity_jacobian[i]
+         piecewiseconst_jacobian[2*i+1] = fidelity_jacobian[i]
 
     fort_jac =np.asfortranarray(piecewiseconst_jacobian)
 
@@ -233,7 +233,7 @@ optimized_parameters = unflatten_list(optimized_parameters_flat)
 optimized_dynamics = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_state=target_state,
         process_tensor=process_tensor,
         parameters=optimized_parameters,
         time_steps=timesteps,

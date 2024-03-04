@@ -395,7 +395,7 @@ def compute_gradient_and_dynamics(
     fwd_edges[0] ^ backprop_tensor[0]
     deriv = deriv_forwardprop_tensor @ backprop_tensor
 
-    combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
+    combined_deriv_list.append(tn.replicate_nodes([deriv])[0])
 
     # propagation cut off after 3/4 propagator application: (amended)
     # Forwardprop list: initial_state, initial_state+1,...,initial_state+(n-1) (+1= one propagation = pre_node + mpo + post_node)
@@ -466,7 +466,7 @@ def compute_gradient_and_dynamics(
 
         deriv = deriv_forwardprop_tensor @ backprop_tensor
 
-        combined_deriv_list.append(tn.replicate_nodes([deriv])[0].tensor)
+        combined_deriv_list.append(tn.replicate_nodes([deriv])[0])
 
     # deriv_list is currently in the reversed order from what you'd expect, so
     # reversing the order of the list.....
