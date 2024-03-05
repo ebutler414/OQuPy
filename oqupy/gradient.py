@@ -38,7 +38,8 @@ def state_gradient(
         return_dynamics: Optional[bool] = False,
         return_gradprop: Optional[bool] = False,
         return_gradparam: Optional[bool] = False,
-        return_fidelity: Optional[bool] = False
+        return_fidelity: Optional[bool] = False,
+        dynamics_only: Optional[bool] = False,
         ) -> Dict:
     """
     Compute system dynamics and gradient of an objective function with respect to a parameterized Hamiltonian,
@@ -74,35 +75,44 @@ def state_gradient(
         target_state,
         process_tensor,
         parameters,
-
+        dynamics_only=dynamics_only,
         return_fidelity=return_fidelity,
         return_dynamics=return_dynamics)
-    
     
     grad_prop = fb_prop_result['derivatives']
     dynamics = fb_prop_result['dynamics']
     fidelity = fb_prop_result['fidelity']
-
-    num_parameters = len(parameters[0])
-    dt = process_tensor.dt
-
-    get_prop_derivatives = system.get_propagator_derivatives(dt=dt,parameters=parameters)
-    get_half_props= system.get_propagators(process_tensor.dt,parameters)
-
-    final_derivs = _chain_rule(
-        adjoint_tensor=grad_prop,
-        dprop_dparam=get_prop_derivatives,
-        propagators=get_half_props,
-       num_half_steps=len(time_steps),
-       num_parameters=num_parameters)
     
-    return_dict = {
+    if dynamics_only:
+    
+        return_dict = {
         'final state':dynamics.states[-1],
         'gradprop':grad_prop,
-        'gradient':final_derivs,
         'dynamics':dynamics,
         'fidelity':fidelity
     }
+    else:
+
+        num_parameters = len(parameters[0])
+        dt = process_tensor.dt
+
+        get_prop_derivatives = system.get_propagator_derivatives(dt=dt,parameters=parameters)
+        get_half_props= system.get_propagators(process_tensor.dt,parameters)
+
+        final_derivs = _chain_rule(
+            adjoint_tensor=grad_prop,
+            dprop_dparam=get_prop_derivatives,
+            propagators=get_half_props,
+        num_half_steps=len(time_steps),
+        num_parameters=num_parameters)
+    
+        return_dict = {
+            'final state':dynamics.states[-1],
+            'gradprop':grad_prop,
+            'gradient':final_derivs,
+            'dynamics':dynamics,
+            'fidelity':fidelity
+        }
     
     return return_dict
 
@@ -113,7 +123,8 @@ def forward_backward_propagation(
         process_tensor: BaseProcessTensor,
         parameters: List[Tuple], 
         return_fidelity: Optional[bool] = True,
-        return_dynamics: Optional[bool] = True) -> Dict:
+        return_dynamics: Optional[bool] = True,
+        dynamics_only: Optional[bool]=False) -> Dict:
     """
     ToDo:
     the return dictionary has the fields:
@@ -131,14 +142,18 @@ def forward_backward_propagation(
         target_state=target_state,
         process_tensor=process_tensor,
         parameters=parameters,
-        record_all=return_dynamics)
+        record_all=return_dynamics,
+        dynamics_only=dynamics_only)
 
     fidelity = None
     if return_fidelity:
-        sqrt_final_state = sqrtm(dynamics.states[-1])
-        intermediate_1 = sqrt_final_state @ target_state
-        inside_of_sqrt = intermediate_1 @ sqrt_final_state
-        fidelity = (sqrtm(inside_of_sqrt).trace())**2
+        v_target = target_state.reshape(4)
+        v_final = dynamics.states[-1].reshape(4)
+        fidelity = v_final@v_target
+        # sqrt_final_state = sqrtm(dynamics.states[-1])
+        # intermediate_1 = sqrt_final_state @ target_state
+        # inside_of_sqrt = intermediate_1 @ sqrt_final_state
+        # fidelity = (sqrtm(inside_of_sqrt).trace())**2
 
     return_dict = {
         'derivatives':adjoint_tensors,
@@ -163,10 +178,10 @@ def _chain_rule(
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
 
-            target_deriv[0] ^ pre_node[0] 
+            target_deriv[3] ^ pre_node[0] 
             target_deriv[1] ^ pre_node[1] 
             target_deriv[2] ^ post_node[0] 
-            target_deriv[3] ^ post_node[1] 
+            target_deriv[0] ^ post_node[1] 
 
             final_node = target_deriv @ pre_node \
                             @ post_node

@@ -198,7 +198,7 @@ def compute_gradient_and_dynamics(
         control: Optional[Control] = None,
         record_all: Optional[bool] = True,
         get_forward_and_backprop_list = False,
-
+        dynamics_only: Optional[bool] = False,
         progress_type: Optional[Text] = "silent") -> Tuple[List,Dynamics]:
     """
     Compute some objective function and calculate its gradient w.r.t.
@@ -347,6 +347,10 @@ def compute_gradient_and_dynamics(
         times = start_time + np.arange(len(states))*dt
     else:
         times = [start_time + len(states)*dt]
+
+    if dynamics_only:
+        return [], Dynamics(times=list(times),states=states)
+
 
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -931,7 +935,7 @@ def _apply_system_superoperator(current_node, current_edges, sup_op):
     """ToDo """
     if sup_op is None:
         return current_node, current_edges
-    sup_op_node = tn.Node(sup_op.T)
+    sup_op_node = tn.Node(sup_op.T) 
     current_edges[-1] ^ sup_op_node[0]
     new_sys_edge = sup_op_node[1]
     current_node = current_node @ sup_op_node

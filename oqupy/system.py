@@ -345,8 +345,8 @@ class ParameterizedSystem(BaseSystem):
         def prop(parameterlist):
             return expm(self.liouvillian(*parameterlist)*dt/2.0)
 
-        jacfunre=Jacobian(lambda x: prop(x).real,step=10**(-6))
-        jacfunim=Jacobian(lambda x: prop(x).imag,step=10**(-6))
+        jacfunre=Jacobian(lambda x: prop(x).real)
+        jacfunim=Jacobian(lambda x: prop(x).imag)
 
         def jacfun(x):
             jac=jacfunre(x)+1.0j*jacfunim(x)
