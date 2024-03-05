@@ -146,8 +146,8 @@ def forward_backward_propagation(
         dynamics_only=dynamics_only)
 
     fidelity = None
-    if return_fidelity:
-        v_target = target_state.reshape(4)
+    if return_fidelity: # testing original form of fidelity as Paul's version gave a not well behaved/strange result with finite difference
+        v_target = target_state.T.reshape(4)
         v_final = dynamics.states[-1].reshape(4)
         fidelity = v_final@v_target
         # sqrt_final_state = sqrtm(dynamics.states[-1])
@@ -175,8 +175,37 @@ def _chain_rule(
             pre_prop,
             post_prop):
 
-            pre_node=tn.Node(pre_prop)
-            post_node=tn.Node(post_prop)
+            pre_node=tn.Node(pre_prop.T)
+            post_node=tn.Node(post_prop.T)
+
+            from itertools import permutations
+
+            possible_mpo_indices = permutations([0,1,2,3])
+            possible_prop_indices = [[0,1,0,1],[1,0,1,0],[1,0,0,1],[0,1,1,0]]
+            d=[]
+
+            if one_go:
+                for mpo_permutation in possible_mpo_indices:
+                    for prop_permutation in possible_prop_indices:
+                        i,j,k,l = mpo_permutation
+                        x,y,z,o = prop_permutation
+                        pre_node_t = tn.Node(pre_prop.T)
+                        post_node_t = tn.Node(post_prop.T)
+                        target_deriv_t = target_deriv
+                        
+                        target_deriv_t[i] ^ pre_node_t[x] 
+                        target_deriv_t[j] ^ pre_node_t[y] 
+                        target_deriv_t[k] ^ post_node_t[z] 
+                        target_deriv_t[l] ^ post_node_t[o] 
+
+                        final_node_t = target_deriv_t @ pre_node_t \
+                            @ post_node_t
+                        print(final_node_t.tensor)
+                        d.append(final_node_t.tensor)
+                        print(i,j,k,l)
+
+                print("!")
+                print(max(d))
 
             target_deriv[3] ^ pre_node[0] 
             target_deriv[1] ^ pre_node[1] 
@@ -189,7 +218,7 @@ def _chain_rule(
             tensor = final_node.tensor
 
             return tensor
-    
+    one_go = True
     total_derivs = np.zeros((num_half_steps,num_parameters),dtype='complex128')
 
     for i in range(0,num_half_steps-1,2): # populating two elements each step
@@ -200,14 +229,16 @@ def _chain_rule(
 
         for j in range(0,num_parameters):
             
-            total_derivs[i][j] = combine_derivs(
-                            adjoint_tensor[i//2],
-                            first_half_prop.T,
-                            second_half_prop_derivs[j].T)
-
             total_derivs[i+1][j] = combine_derivs(
                             adjoint_tensor[i//2],
-                            first_half_prop_derivs[j].T,
-                            second_half_prop.T)
+                            first_half_prop,
+                            second_half_prop_derivs[j])
+
+            total_derivs[i][j] = combine_derivs(
+                            adjoint_tensor[i//2],
+                            first_half_prop_derivs[j],
+                            second_half_prop)
+        
+        one_go = False
 
     return total_derivs

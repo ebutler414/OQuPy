@@ -389,7 +389,7 @@ def compute_gradient_and_dynamics(
         backprop_tensor = tn.replicate_nodes([current_node])[0]
         backprop_derivs_list = [tn.replicate_nodes([current_node])[0]]
         # note now backprop_deriv_list is unnecessary
-    
+
     pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
 
     fwd_edges = forwardprop_tensor[:]
@@ -397,7 +397,7 @@ def compute_gradient_and_dynamics(
     deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
 
     fwd_edges[0] ^ backprop_tensor[0]
-    deriv = deriv_forwardprop_tensor @ backprop_tensor
+    deriv = deriv_forwardprop_tensor @ backprop_tensor 
 
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0])
 
