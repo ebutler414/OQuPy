@@ -150,10 +150,6 @@ def forward_backward_propagation(
         v_target = target_state.T.reshape(4)
         v_final = dynamics.states[-1].reshape(4)
         fidelity = v_final@v_target
-        # sqrt_final_state = sqrtm(dynamics.states[-1])
-        # intermediate_1 = sqrt_final_state @ target_state
-        # inside_of_sqrt = intermediate_1 @ sqrt_final_state
-        # fidelity = (sqrtm(inside_of_sqrt).trace())**2
 
     return_dict = {
         'derivatives':adjoint_tensors,
@@ -175,42 +171,13 @@ def _chain_rule(
             pre_prop,
             post_prop):
 
-            pre_node=tn.Node(pre_prop.T)
-            post_node=tn.Node(post_prop.T)
+            pre_node=tn.Node(pre_prop)
+            post_node=tn.Node(post_prop)
 
-            from itertools import permutations
-
-            possible_mpo_indices = permutations([0,1,2,3])
-            possible_prop_indices = [[0,1,0,1],[1,0,1,0],[1,0,0,1],[0,1,1,0]]
-            d=[]
-
-            if one_go:
-                for mpo_permutation in possible_mpo_indices:
-                    for prop_permutation in possible_prop_indices:
-                        i,j,k,l = mpo_permutation
-                        x,y,z,o = prop_permutation
-                        pre_node_t = tn.Node(pre_prop.T)
-                        post_node_t = tn.Node(post_prop.T)
-                        target_deriv_t = target_deriv
-                        
-                        target_deriv_t[i] ^ pre_node_t[x] 
-                        target_deriv_t[j] ^ pre_node_t[y] 
-                        target_deriv_t[k] ^ post_node_t[z] 
-                        target_deriv_t[l] ^ post_node_t[o] 
-
-                        final_node_t = target_deriv_t @ pre_node_t \
-                            @ post_node_t
-                        print(final_node_t.tensor)
-                        d.append(final_node_t.tensor)
-                        print(i,j,k,l)
-
-                print("!")
-                print(max(d))
-
-            target_deriv[3] ^ pre_node[0] 
-            target_deriv[1] ^ pre_node[1] 
-            target_deriv[2] ^ post_node[0] 
             target_deriv[0] ^ post_node[1] 
+            target_deriv[1] ^ post_node[0] 
+            target_deriv[2] ^ pre_node[0] 
+            target_deriv[3] ^ pre_node[1] 
 
             final_node = target_deriv @ pre_node \
                             @ post_node
@@ -231,8 +198,9 @@ def _chain_rule(
             
             total_derivs[i+1][j] = combine_derivs(
                             adjoint_tensor[i//2],
-                            first_half_prop,
-                            second_half_prop_derivs[j])
+                            first_half_prop.T,
+                            second_half_prop_derivs[j].T)
+
 
             total_derivs[i][j] = combine_derivs(
                             adjoint_tensor[i//2],
