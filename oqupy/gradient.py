@@ -178,10 +178,10 @@ def _chain_rule(
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
 
-            target_deriv[3] ^ pre_node[0] 
-            target_deriv[1] ^ pre_node[1] 
+            target_deriv[3] ^ post_node[1] 
             target_deriv[2] ^ post_node[0] 
-            target_deriv[0] ^ post_node[1] 
+            target_deriv[0] ^ pre_node[0] 
+            target_deriv[1] ^ pre_node[1] 
 
             final_node = target_deriv @ pre_node \
                             @ post_node
@@ -200,12 +200,12 @@ def _chain_rule(
 
         for j in range(0,num_parameters):
             
-            total_derivs[i][j] = combine_derivs(
+            total_derivs[i+1][j] = combine_derivs(
                             adjoint_tensor[i//2],
                             first_half_prop.T,
                             second_half_prop_derivs[j].T)
 
-            total_derivs[i+1][j] = combine_derivs(
+            total_derivs[i][j] = combine_derivs(
                             adjoint_tensor[i//2],
                             first_half_prop_derivs[j].T,
                             second_half_prop.T)
