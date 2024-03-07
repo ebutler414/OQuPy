@@ -197,8 +197,8 @@ def _chain_rule(
 
             total_derivs[2*i][j] = combine_derivs(
                             adjoint_tensor[i],
-                            first_half_prop_derivs[j],
-                            second_half_prop)
+                            first_half_prop_derivs[j].T,
+                            second_half_prop.T)
             
             total_derivs[2*i+1][j] = combine_derivs(
                 adjoint_tensor[i],

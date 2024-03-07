@@ -47,7 +47,7 @@ target_state = op.spin_dm('x+')
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
-z0 = np.ones(2*total_steps) * (np.pi) / (2*dt*total_steps)
+z0 = np.ones(2*total_steps) * (np.pi) / (dt*total_steps)
 x0 = np.zeros(2*total_steps)
 
 parameter_list = list(zip(x0,y0,z0))
@@ -63,19 +63,20 @@ test_parameter_list = list(zip(x0,y0,z0))
 num_steps = total_steps
 
 end_step= total_steps
+timesteps=None
 
-if end_step == 0 or end_step == total_steps: 
-    num_steps=total_steps
-    timesteps=None
-elif end_step <  total_steps:
-    parameter_list = parameter_list[0:2*end_step]
-    num_steps=end_step
-    timesteps=range(2*end_step)
-else:
-    for i in range(2*total_steps,2*end_step):
-        parameter_list.append(parameter_list[0])
-    num_steps=end_step
-    timesteps=range(2*end_step)
+# if end_step == 0 or end_step == total_steps: 
+#     num_steps=total_steps
+#     timesteps=None
+# elif end_step <  total_steps:
+#     parameter_list = parameter_list[0:2*end_step]
+#     num_steps=end_step
+#     timesteps=range(2*end_step)
+# else:
+#     for i in range(2*total_steps,2*end_step):
+#         parameter_list.append(parameter_list[0])
+#     num_steps=end_step
+#     timesteps=range(2*end_step)
 
 
 # --- Compute process tensors -------------------------------------------------
@@ -138,8 +139,8 @@ plt.legend()
 
 # ----------- Optimisation of control parameters w.r.t. infidelity ---------------
 
-def flatten_list(parameter_list):
-    assert np.shape(parameter_list) == (2*num_steps,num_params)
+def flatten_list(parameter_list,steps):
+    assert np.shape(parameter_list) == (steps,num_params)
     parameter_list_flat = [
     x
     for xs in parameter_list
@@ -147,32 +148,36 @@ def flatten_list(parameter_list):
     ]
     return parameter_list_flat
 
-def unflatten_list(flat_list):
-    assert np.shape(flat_list) == (num_params*2*num_steps,)
-    parameter_list = np.reshape(flat_list,(2*num_steps,num_params))
+def unflatten_list(flat_list,steps):
+    assert np.shape(flat_list) == (num_params*steps,)
+    parameter_list = np.reshape(flat_list,(steps,num_params))
     return parameter_list
 
-def sum_adjacent_elements(list:List)->List:
+def copy_adjacent_elements(list:List)->List:
+    double_list = []
+    for entry in list:
+         double_list.append(entry)
+         double_list.append(entry)
 
-    half_the_size = len(list) / 2
-    assert (half_the_size).is_integer()
-    
-    half_the_size = int(half_the_size)
+    return double_list
 
-    summed_array = np.reshape(list,(half_the_size,2)).sum(axis=1)
-    return summed_array
+
 
 def infidelity(parameter_list_flat):
 
-    piecewiseconst_params = np.reshape(parameter_list_flat+parameter_list_flat,(2*num_steps*num_params,))
+    parameter_list = list(unflatten_list(parameter_list_flat,num_steps))
 
-    parameter_list_var = unflatten_list(piecewiseconst_params)
+    piecewiseconst_params=copy_adjacent_elements(parameter_list)
+
+    print("!")
+
+    print(piecewiseconst_params)
 
     return_dict = state_gradient(system=parametrized_system,
         initial_state=initial_state,
         target_state=target_state.T,
         process_tensor=process_tensor,
-        parameters=parameter_list_var,
+        parameters=piecewiseconst_params,
         time_steps=timesteps,
         return_fidelity=True,
         return_dynamics=False,
@@ -183,12 +188,9 @@ def infidelity(parameter_list_flat):
 # infidelity gradient to point optimiser in the right direction (note: minimising infidelity therefore jacobian multiplied by -1)
 def fidelity_jacobian(parameter_list_flat):
 
-    piecewiseconst_params = [0]*2*num_params*num_steps
-    for i,element in enumerate(parameter_list_flat):
-           piecewiseconst_params[2*i] = parameter_list_flat[i]
-           piecewiseconst_params[2*i+1] = parameter_list_flat[i]
+    parameter_list = list(unflatten_list(parameter_list_flat,num_steps))
 
-    parameter_list_var = unflatten_list(piecewiseconst_params)
+    piecewiseconst_params=copy_adjacent_elements(parameter_list)
 
     fidelity_dict = state_gradient(
         system=parametrized_system,
@@ -196,23 +198,15 @@ def fidelity_jacobian(parameter_list_flat):
         target_state=target_state.T,
         process_tensor=process_tensor,
         time_steps=timesteps,
-        parameters=parameter_list_var)
+        parameters=piecewiseconst_params)
     
     fidelity_jacobian = fidelity_dict['gradient']
-    piecewiseconst_jacob = np.empty(num_steps)
 
-    for i in range(num_params):
-        piecewiseconst_jacob= np.vstack((piecewiseconst_jacob,sum_adjacent_elements([row[i] for row in fidelity_jacobian])))
+    piecewiseconst_jacob = np.reshape(fidelity_jacobian,(num_steps,2,num_params)).sum(axis=1)
 
-    piecewiseconst_jacob =  [
-    x
-    for xs in piecewiseconst_jacob
-    for x in xs
-    ]
+    flat_jacobian = flatten_list(piecewiseconst_jacob,num_steps)
 
-    print(np.shape(piecewiseconst_jacob))
-
-    fort_jac =np.asfortranarray(piecewiseconst_jacob)
+    fort_jac =np.asfortranarray(flat_jacobian)
 
     return -fort_jac.real
 
@@ -227,21 +221,9 @@ for i in range(0, num_params*num_steps,num_params):
         bounds[i+1] = y_bound
         bounds[i+2] = z_bound
 
-print(test_parameter_list)
+test_parameter_list_flat = flatten_list(test_parameter_list,num_steps)
 
-test_parameter_list_flat = [
-    x
-    for xs in test_parameter_list
-    for x in xs
-    ]
-
-print(test_parameter_list_flat)
-
-piecewiseconst_params = [0]*2*num_params*num_steps
-
-piecewiseconst_params = np.reshape(test_parameter_list_flat+test_parameter_list_flat,(2*num_steps*num_params,))
-
-print(piecewiseconst_params)
+print(np.reshape(test_parameter_list,(num_params*num_steps//2,2)))
 
 optimization_result = minimize(
                         fun=infidelity,
