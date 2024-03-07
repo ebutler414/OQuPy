@@ -37,8 +37,8 @@ total_steps = 20 # 20
 # -- bath --
 alpha =  0.126 #0.08
 omega_cutoff = 3.04 #4
-temperature =  5 * 0.1309 #1.6
-pt_dkmax =60 # 40
+temperature = 0* 5 * 0.1309 #1.6
+pt_dkmax =200 # 40   60
 pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
@@ -47,12 +47,17 @@ target_state = op.spin_dm('x+')
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
-z0 = np.ones(2*total_steps) * (np.pi) / (dt*total_steps)
+z0 = np.ones(2*total_steps) * (np.pi) / (2*dt*total_steps)
 x0 = np.zeros(2*total_steps)
 
 parameter_list = list(zip(x0,y0,z0))
 num_params = len(parameter_list[0])
 
+y0 = np.zeros(total_steps)
+z0 = np.ones(total_steps) * (np.pi) / (dt*total_steps)
+x0 = np.zeros(total_steps)
+
+test_parameter_list = list(zip(x0,y0,z0))
 # --- Choose timestep of Fidelity -----------
 
 num_steps = total_steps
@@ -110,7 +115,7 @@ from oqupy.gradient import state_gradient
 fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_state=target_state.T,
         process_tensor=process_tensor,
         parameters=parameter_list,
         time_steps=timesteps,
@@ -143,7 +148,7 @@ def flatten_list(parameter_list):
     return parameter_list_flat
 
 def unflatten_list(flat_list):
-    assert np.shape(flat_list) == (2*num_params*num_steps,)
+    assert np.shape(flat_list) == (num_params*2*num_steps,)
     parameter_list = np.reshape(flat_list,(2*num_steps,num_params))
     return parameter_list
 
@@ -159,44 +164,55 @@ def sum_adjacent_elements(list:List)->List:
 
 def infidelity(parameter_list_flat):
 
-    parameter_list_var = unflatten_list(parameter_list_flat)
+    piecewiseconst_params = np.reshape(parameter_list_flat+parameter_list_flat,(2*num_steps*num_params,))
+
+    parameter_list_var = unflatten_list(piecewiseconst_params)
 
     return_dict = state_gradient(system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_state=target_state.T,
         process_tensor=process_tensor,
         parameters=parameter_list_var,
         time_steps=timesteps,
         return_fidelity=True,
-        return_dynamics=False)
+        return_dynamics=False,
+        dynamics_only=True)
     
     return -return_dict['fidelity'].real
 
 # infidelity gradient to point optimiser in the right direction (note: minimising infidelity therefore jacobian multiplied by -1)
 def fidelity_jacobian(parameter_list_flat):
 
-    parameter_list_var = unflatten_list(parameter_list_flat)
+    piecewiseconst_params = [0]*2*num_params*num_steps
+    for i,element in enumerate(parameter_list_flat):
+           piecewiseconst_params[2*i] = parameter_list_flat[i]
+           piecewiseconst_params[2*i+1] = parameter_list_flat[i]
+
+    parameter_list_var = unflatten_list(piecewiseconst_params)
 
     fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_state=target_state.T,
         process_tensor=process_tensor,
         time_steps=timesteps,
         parameters=parameter_list_var)
     
-    fidelity_jacobian = flatten_list(fidelity_dict['gradient'])
- 
-    fidelity_jacobian = sum_adjacent_elements(fidelity_jacobian)
+    fidelity_jacobian = fidelity_dict['gradient']
+    piecewiseconst_jacob = np.empty(num_steps)
 
-    piecewiseconst_jacobian = [0]*2*num_params*num_steps
+    for i in range(num_params):
+        piecewiseconst_jacob= np.vstack((piecewiseconst_jacob,sum_adjacent_elements([row[i] for row in fidelity_jacobian])))
 
-    # the ordering of the half propagator derivatives is arbitary so doesn't make sense to optimise w.r.t. them
-    for i,element in enumerate(fidelity_jacobian):
-         piecewiseconst_jacobian[2*i] = fidelity_jacobian[i]
-         piecewiseconst_jacobian[2*i+1] = fidelity_jacobian[i]
+    piecewiseconst_jacob =  [
+    x
+    for xs in piecewiseconst_jacob
+    for x in xs
+    ]
 
-    fort_jac =np.asfortranarray(piecewiseconst_jacobian)
+    print(np.shape(piecewiseconst_jacob))
+
+    fort_jac =np.asfortranarray(piecewiseconst_jacob)
 
     return -fort_jac.real
 
@@ -204,16 +220,32 @@ x_bound = [-5*np.pi,5*np.pi]
 y_bound = [0,0] 
 z_bound = [-np.pi,np.pi]
 
-bounds = np.zeros((2*num_steps*num_params,2))
+bounds = np.zeros((num_steps*num_params,2))
 
-for i in range(0, 2*num_params*num_steps,num_params):
+for i in range(0, num_params*num_steps,num_params):
         bounds[i] = x_bound
         bounds[i+1] = y_bound
         bounds[i+2] = z_bound
 
+print(test_parameter_list)
+
+test_parameter_list_flat = [
+    x
+    for xs in test_parameter_list
+    for x in xs
+    ]
+
+print(test_parameter_list_flat)
+
+piecewiseconst_params = [0]*2*num_params*num_steps
+
+piecewiseconst_params = np.reshape(test_parameter_list_flat+test_parameter_list_flat,(2*num_steps*num_params,))
+
+print(piecewiseconst_params)
+
 optimization_result = minimize(
                         fun=infidelity,
-                        x0=flatten_list(parameter_list),
+                        x0=test_parameter_list_flat,
                         method='L-BFGS-B',
                         jac=fidelity_jacobian,
                         bounds=bounds,
@@ -227,18 +259,19 @@ print("The jacobian was found to be : ",optimization_result.jac)
 
 optimized_parameters_flat = optimization_result.x
 
-times = np.arange(0,2*num_steps)
-optimized_parameters = unflatten_list(optimized_parameters_flat)
+times = np.arange(0,num_steps)
+#optimized_parameters = unflatten_list(optimized_parameters_flat)
+optimized_parameters = np.reshape(optimized_parameters_flat,(num_steps,num_params))
 
-optimized_dynamics = state_gradient(
-        system=parametrized_system,
-        initial_state=initial_state,
-        target_state=target_state,
-        process_tensor=process_tensor,
-        parameters=optimized_parameters,
-        time_steps=timesteps,
-        return_fidelity=True,
-        return_dynamics=True)
+# optimized_dynamics = state_gradient(
+#         system=parametrized_system,
+#         initial_state=initial_state,
+#         target_state=target_state,
+#         process_tensor=process_tensor,
+#         parameters=optimized_parameters,
+#         time_steps=timesteps,
+#         return_fidelity=True,
+#         return_dynamics=True)
 
 fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1) 
 fig.suptitle("Optimisation results")
@@ -253,20 +286,20 @@ ax1.plot(times,optimized_z,label='z')
 
 ax1.legend()
 
-from scipy.linalg import sqrtm
+# from scipy.linalg import sqrtm
 
-dynamics = optimized_dynamics['dynamics']
+# dynamics = optimized_dynamics['dynamics']
 
-fidelity=[]
+# fidelity=[]
 
-for state in dynamics.states:
-    sqrt_final_state =sqrtm(state)
-    intermediate_1 = sqrt_final_state @ target_state
+# for state in dynamics.states:
+#     sqrt_final_state =sqrtm(state)
+#     intermediate_1 = sqrt_final_state @ target_state
 
-    inside_of_sqrt = intermediate_1 @ sqrt_final_state
-    fidelity.append((sqrtm(inside_of_sqrt).trace())**2)
+#     inside_of_sqrt = intermediate_1 @ sqrt_final_state
+#     fidelity.append((sqrtm(inside_of_sqrt).trace())**2)
 
-ax2.plot(fidelity)
+# ax2.plot(fidelity)
 
 plt.legend()
 

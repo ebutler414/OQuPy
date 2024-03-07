@@ -288,7 +288,6 @@ def compute_gradient_and_dynamics(
     prog_bar.enter()
 
     forwardprop_derivs_list = []
-    forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
 
     for step in range(num_steps+1): 
         # -- apply pre measurement control --
@@ -297,7 +296,7 @@ def compute_gradient_and_dynamics(
         if pre_measurement_control is not None:
             current_node, current_edges = _apply_system_superoperator(
                 current_node, current_edges, pre_measurement_control)
-
+        
         if step == num_steps:
             break
 
@@ -308,12 +307,15 @@ def compute_gradient_and_dynamics(
             state = state_tensor.reshape(hs_dim, hs_dim)
             states.append(state)
 
+
         prog_bar.update(step)
 
         # -- apply post measurement control --
         if post_measurement_control is not None:
             current_node, current_edges = _apply_system_superoperator(
                 current_node, current_edges, post_measurement_control)
+
+        forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
 
         # -- propagate one time step --
         first_half_prop, second_half_prop = propagators(step)
@@ -327,11 +329,6 @@ def compute_gradient_and_dynamics(
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop)
-        
-        # time-slice taken AFTER second half prop.
-        forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
-
-    del forwardprop_derivs_list[-1] # Don't need last element of forwardprop for derivative (MPO insertion)
 
     # -- extract last state --
     caps = _get_caps(process_tensors, num_steps)
@@ -350,8 +347,6 @@ def compute_gradient_and_dynamics(
 
     if dynamics_only:
         return [], Dynamics(times=list(times),states=states)
-
-
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # ~~~~~ Backpropagation ~~~~~~
@@ -375,93 +370,61 @@ def compute_gradient_and_dynamics(
 
     combined_deriv_list = []
 
-    if get_forward_and_backprop_list:
-        backprop_derivs_list = [tn.replicate_nodes([current_node])[0]]
+    pre_measurement_control, post_measurement_control=controls(num_steps)
 
-        forwardprop_tensor = forwardprop_derivs_list[num_steps-1]
-        backprop_tensor = backprop_derivs_list[0]
-
-    else:
-        forwardprop_tensor = forwardprop_derivs_list[num_steps-1]
-        # if we're not keeping the full list, we can delete the
-        # forwardprop tensor to save memory
-        del forwardprop_derivs_list[num_steps-1]
-        backprop_tensor = tn.replicate_nodes([current_node])[0]
-        backprop_derivs_list = [tn.replicate_nodes([current_node])[0]]
-        # note now backprop_deriv_list is unnecessary
-
-    pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
-
-    fwd_edges = forwardprop_tensor[:]
-
-    deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
-
-    fwd_edges[0] ^ backprop_tensor[0]
-    deriv = deriv_forwardprop_tensor @ backprop_tensor 
-
-    combined_deriv_list.append(tn.replicate_nodes([deriv])[0])
-
-    # propagation cut off after 3/4 propagator application: (amended)
-    # Forwardprop list: initial_state, initial_state+1,...,initial_state+(n-1) (+1= one propagation = pre_node + mpo + post_node)
-    # Backprop list: final_state, final_state-1,..., (-1= one back-propagation = post_node + mpo + pre_node)
-    # Deriv list: initial_state+(n-1)+M+final_state, initial_state+(n-2)+M+final_state-1, ... , initial_state-(n-1)+M+initial_state (+M:relevant MPO)
-    # We take n to be the step the mpo is taken from
-
-    for step in reversed(range(-1,num_steps-1)):
-        # -- now the backpropagation part --
-
-        # -- apply pre measurement control --
-        pre_measurement_control, post_measurement_control = controls(step+1)
-
-        if post_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
-                current_node, current_edges, post_measurement_control.T)
-
-        if step == -1: # i think this is correct
-            break
-
-        # record_all not necessary for backprop as it's been done in the
-        # forwardprop
-
-        # -- apply post measurement control --
-        if pre_measurement_control is not None:
-            current_node, current_edges = _apply_system_superoperator(
+    if pre_measurement_control is not None:
+        current_node, current_edges = _apply_system_superoperator(
                 current_node, current_edges, pre_measurement_control.T)
 
-        # -- propagate one time step --
-        # we're propagating backwards so we're actually using the propagators
-        # from the next timestep, hence +1 in next line 
-        first_half_prop, second_half_prop = propagators(step+1)
-        pt_mpos = _get_pt_mpos_backprop(process_tensors, step+1)
+    forwardprop_tensor = forwardprop_derivs_list[num_steps-1]  
 
-        for pt_mpo in pt_mpos:
-            pt_mpo_node = tn.Node(pt_mpo)
+    if get_forward_and_backprop_list:
+        backprop_derivs_list.append(tn.replicate_nodes([current_node])[0])    
+
+    pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
+    backprop_tensor =  tn.replicate_nodes([current_node])[0]
+
+    fwd_edges = forwardprop_tensor[:]
+    deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
+          
+    fwd_edges[0] ^ backprop_tensor[0] 
+
+    deriv = deriv_forwardprop_tensor @ backprop_tensor
+
+    combined_deriv_list.append(tn.replicate_nodes([deriv])[0])
         
+    for step in reversed(range(1,num_steps)):
+
+        # -- now the backpropagation part --
+        pre_measurement_control, post_measurement_control = controls(step)
+        first_half_prop, second_half_prop = propagators(step)
+        pt_mpos = _get_pt_mpos_backprop(process_tensors, step)
+
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop.T)
 
         current_node, current_edges = _apply_pt_mpos(
             current_node, current_edges, pt_mpos)
-
-        forwardprop_tensor = forwardprop_derivs_list[step]
-        
+ 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, first_half_prop.T)
 
+        if post_measurement_control is not None:
+            current_node, current_edges = _apply_system_superoperator(
+                current_node, current_edges, post_measurement_control.T)
+
+        if pre_measurement_control is not None:
+            current_node, current_edges = _apply_system_superoperator(
+                current_node, current_edges, pre_measurement_control.T)
+
+        forwardprop_tensor = forwardprop_derivs_list[step-1]  
+
         if get_forward_and_backprop_list:
             backprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
-            backprop_tensor = tn.replicate_nodes([current_node])[0]
-        else:
-            # test:
-            if len(forwardprop_derivs_list)-1 != step:
-                raise IndexError('These should be equal')
+     
+        backprop_tensor =  tn.replicate_nodes([current_node])[0]
 
-            # if we're not keeping the full list, we can delete the
-            # forwardprop tensor to save memory
-            del forwardprop_derivs_list[step]
-            backprop_tensor =  tn.replicate_nodes([current_node])[0]
-
-        pt_mpos = _get_pt_mpos(process_tensors, step)
+        pt_mpos = _get_pt_mpos(process_tensors, step-1)
 
         fwd_edges = forwardprop_tensor[:]
         deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
@@ -479,7 +442,6 @@ def compute_gradient_and_dynamics(
 
     # -- create dynamics object --
     if record_all:
-        print(len(states))
         times = start_time + np.arange(len(states))*dt
     else:
         times = [start_time + len(states)*dt]
