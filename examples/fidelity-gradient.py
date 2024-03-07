@@ -32,13 +32,13 @@ pt_epsrel = 1.0e-5
 # parameters used in https://arxiv.org/abs/2303.16002
 # -- time steps --
 dt = 0.05 # 0.2
-total_steps = 20 # 20
+total_steps = 100# 20
 
 # -- bath --
 alpha =  0.126 #0.08
 omega_cutoff = 3.04 #4
-temperature = 0* 5 * 0.1309 #1.6
-pt_dkmax =200 # 40   60
+temperature = 5 * 0.1309 #1.6
+pt_dkmax =60 # 40   60
 pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
@@ -65,18 +65,18 @@ num_steps = total_steps
 end_step= total_steps
 timesteps=None
 
-# if end_step == 0 or end_step == total_steps: 
-#     num_steps=total_steps
-#     timesteps=None
-# elif end_step <  total_steps:
-#     parameter_list = parameter_list[0:2*end_step]
-#     num_steps=end_step
-#     timesteps=range(2*end_step)
-# else:
-#     for i in range(2*total_steps,2*end_step):
-#         parameter_list.append(parameter_list[0])
-#     num_steps=end_step
-#     timesteps=range(2*end_step)
+if end_step == 0 or end_step == total_steps: 
+     num_steps=total_steps
+     timesteps=None
+elif end_step <  total_steps:
+    parameter_list = parameter_list[0:2*end_step]
+    num_steps=end_step
+    timesteps=range(2*end_step)
+else:
+    for i in range(2*total_steps,2*end_step):
+        parameter_list.append(parameter_list[0])
+    num_steps=end_step
+    timesteps=range(2*end_step)
 
 
 # --- Compute process tensors -------------------------------------------------
@@ -139,8 +139,7 @@ plt.legend()
 
 # ----------- Optimisation of control parameters w.r.t. infidelity ---------------
 
-def flatten_list(parameter_list,steps):
-    assert np.shape(parameter_list) == (steps,num_params)
+def flatten_list(parameter_list):
     parameter_list_flat = [
     x
     for xs in parameter_list
@@ -148,9 +147,9 @@ def flatten_list(parameter_list,steps):
     ]
     return parameter_list_flat
 
-def unflatten_list(flat_list,steps):
-    assert np.shape(flat_list) == (num_params*steps,)
-    parameter_list = np.reshape(flat_list,(steps,num_params))
+def unflatten_list(flat_list):
+
+    parameter_list = np.reshape(flat_list,(-1,num_params))
     return parameter_list
 
 def copy_adjacent_elements(list:List)->List:
@@ -158,20 +157,13 @@ def copy_adjacent_elements(list:List)->List:
     for entry in list:
          double_list.append(entry)
          double_list.append(entry)
-
     return double_list
-
-
 
 def infidelity(parameter_list_flat):
 
-    parameter_list = list(unflatten_list(parameter_list_flat,num_steps))
+    parameter_list = unflatten_list(parameter_list_flat)
 
     piecewiseconst_params=copy_adjacent_elements(parameter_list)
-
-    print("!")
-
-    print(piecewiseconst_params)
 
     return_dict = state_gradient(system=parametrized_system,
         initial_state=initial_state,
@@ -188,7 +180,7 @@ def infidelity(parameter_list_flat):
 # infidelity gradient to point optimiser in the right direction (note: minimising infidelity therefore jacobian multiplied by -1)
 def fidelity_jacobian(parameter_list_flat):
 
-    parameter_list = list(unflatten_list(parameter_list_flat,num_steps))
+    parameter_list = list(unflatten_list(parameter_list_flat))
 
     piecewiseconst_params=copy_adjacent_elements(parameter_list)
 
@@ -204,7 +196,7 @@ def fidelity_jacobian(parameter_list_flat):
 
     piecewiseconst_jacob = np.reshape(fidelity_jacobian,(num_steps,2,num_params)).sum(axis=1)
 
-    flat_jacobian = flatten_list(piecewiseconst_jacob,num_steps)
+    flat_jacobian = flatten_list(piecewiseconst_jacob)
 
     fort_jac =np.asfortranarray(flat_jacobian)
 
@@ -221,9 +213,7 @@ for i in range(0, num_params*num_steps,num_params):
         bounds[i+1] = y_bound
         bounds[i+2] = z_bound
 
-test_parameter_list_flat = flatten_list(test_parameter_list,num_steps)
-
-print(np.reshape(test_parameter_list,(num_params*num_steps//2,2)))
+test_parameter_list_flat = flatten_list(test_parameter_list)
 
 optimization_result = minimize(
                         fun=infidelity,
@@ -232,7 +222,7 @@ optimization_result = minimize(
                         jac=fidelity_jacobian,
                         bounds=bounds,
                         callback=infidelity,
-                        options = {'disp':True}
+                        options = {'disp':True, 'gtol': 7e-05}
 )
 
 print("The maximal fidelity was found to be : ",-optimization_result.fun)
@@ -242,18 +232,19 @@ print("The jacobian was found to be : ",optimization_result.jac)
 optimized_parameters_flat = optimization_result.x
 
 times = np.arange(0,num_steps)
-#optimized_parameters = unflatten_list(optimized_parameters_flat)
-optimized_parameters = np.reshape(optimized_parameters_flat,(num_steps,num_params))
 
-# optimized_dynamics = state_gradient(
-#         system=parametrized_system,
-#         initial_state=initial_state,
-#         target_state=target_state,
-#         process_tensor=process_tensor,
-#         parameters=optimized_parameters,
-#         time_steps=timesteps,
-#         return_fidelity=True,
-#         return_dynamics=True)
+optimized_parameters = np.reshape(optimized_parameters_flat,(num_steps,num_params))
+optimized_parameters_double = copy_adjacent_elements(np.reshape(optimized_parameters_flat,(num_steps,num_params)))
+
+optimized_dynamics = state_gradient(
+        system=parametrized_system,
+        initial_state=initial_state,
+        target_state=target_state,
+        process_tensor=process_tensor,
+        parameters=optimized_parameters_double,
+        time_steps=timesteps,
+        return_fidelity=True,
+        return_dynamics=True)
 
 fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1) 
 fig.suptitle("Optimisation results")
@@ -268,20 +259,19 @@ ax1.plot(times,optimized_z,label='z')
 
 ax1.legend()
 
-# from scipy.linalg import sqrtm
+from scipy.linalg import sqrtm
 
-# dynamics = optimized_dynamics['dynamics']
+dynamics = optimized_dynamics['dynamics']
 
-# fidelity=[]
+t, bloch_x =optimized_dynamics['dynamics'].expectations(op.sigma("x"))
+t, bloch_y = optimized_dynamics['dynamics'].expectations(op.sigma("y"))
+t, bloch_z = optimized_dynamics['dynamics'].expectations(op.sigma("z"))
 
-# for state in dynamics.states:
-#     sqrt_final_state =sqrtm(state)
-#     intermediate_1 = sqrt_final_state @ target_state
-
-#     inside_of_sqrt = intermediate_1 @ sqrt_final_state
-#     fidelity.append((sqrtm(inside_of_sqrt).trace())**2)
-
-# ax2.plot(fidelity)
+ax2.plot(t,bloch_x,label='x')
+ax2.plot(t,bloch_y,label='y')
+ax2.plot(t,bloch_z,label='z')
+bloch_length = np.sqrt(bloch_x**2 +bloch_y**2 + bloch_z**2)
+ax2.plot(t,bloch_length,label=r'$|\mathbf{\sigma}|$')
 
 plt.legend()
 
