@@ -296,7 +296,7 @@ def compute_gradient_and_dynamics(
         if pre_measurement_control is not None:
             current_node, current_edges = _apply_system_superoperator(
                 current_node, current_edges, pre_measurement_control)
-
+        
         if step == num_steps:
             break
 
@@ -306,6 +306,7 @@ def compute_gradient_and_dynamics(
             state_tensor = _apply_caps(current_node, current_edges, caps)
             state = state_tensor.reshape(hs_dim, hs_dim)
             states.append(state)
+
 
         prog_bar.update(step)
 
@@ -328,8 +329,6 @@ def compute_gradient_and_dynamics(
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, second_half_prop)
-        
-    # del forwardprop_derivs_list[-1] # Don't need last element of forwardprop for derivative (MPO insertion)
 
     # -- extract last state --
     caps = _get_caps(process_tensors, num_steps)
@@ -348,8 +347,6 @@ def compute_gradient_and_dynamics(
 
     if dynamics_only:
         return [], Dynamics(times=list(times),states=states)
-
-
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     # ~~~~~ Backpropagation ~~~~~~
@@ -378,19 +375,14 @@ def compute_gradient_and_dynamics(
     if pre_measurement_control is not None:
         current_node, current_edges = _apply_system_superoperator(
                 current_node, current_edges, pre_measurement_control.T)
-    
-    # construct the final (latest time) derivative block
 
-    step=num_steps
-
-    forwardprop_tensor = forwardprop_derivs_list[step-1]  
+    forwardprop_tensor = forwardprop_derivs_list[num_steps-1]  
 
     if get_forward_and_backprop_list:
-        backprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
-     
-    backprop_tensor =  tn.replicate_nodes([current_node])[0]
+        backprop_derivs_list.append(tn.replicate_nodes([current_node])[0])    
 
-    pt_mpos = _get_pt_mpos(process_tensors, step-1)
+    pt_mpos = _get_pt_mpos(process_tensors, num_steps-1)
+    backprop_tensor =  tn.replicate_nodes([current_node])[0]
 
     fwd_edges = forwardprop_tensor[:]
     deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
@@ -400,7 +392,7 @@ def compute_gradient_and_dynamics(
     deriv = deriv_forwardprop_tensor @ backprop_tensor
 
     combined_deriv_list.append(tn.replicate_nodes([deriv])[0])
-
+        
     for step in reversed(range(1,num_steps)):
 
         # -- now the backpropagation part --
@@ -450,7 +442,6 @@ def compute_gradient_and_dynamics(
 
     # -- create dynamics object --
     if record_all:
-        print(len(states))
         times = start_time + np.arange(len(states))*dt
     else:
         times = [start_time + len(states)*dt]

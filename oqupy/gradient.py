@@ -101,7 +101,7 @@ def state_gradient(
             adjoint_tensor=grad_prop,
             dprop_dparam=get_prop_derivatives,
             propagators=get_half_props,
-            num_half_steps=len(time_steps),
+            num_steps=len(time_steps)//2,
             num_parameters=num_parameters)
     
         return_dict = {
@@ -142,17 +142,14 @@ def forward_backward_propagation(
         parameters=parameters,
         record_all=return_dynamics,
         dynamics_only=dynamics_only)
+    
+    hs_dim = 2
 
     fidelity = None
     if return_fidelity:
-        v_target = target_state.reshape(4)
-        v_final = dynamics.states[-1].reshape(4)
-        fidelity = v_final@v_target
-        # sqrt_final_state = sqrtm(dynamics.states[-1])
-        # intermediate_1 = sqrt_final_state @ target_state
-        # inside_of_sqrt = intermediate_1 @ sqrt_final_state
-        # fidelity = (sqrtm(inside_of_sqrt).trace())**2
-
+        v_target = target_state.reshape(hs_dim**2)
+        v_final = dynamics.states[-1].reshape(hs_dim**2)
+        fidelity =v_target@v_final
     return_dict = {
         'derivatives':adjoint_tensors,
         'fidelity':fidelity,
@@ -165,7 +162,7 @@ def _chain_rule(
         adjoint_tensor:ndarray,
         dprop_dparam:Callable[[int], Tuple[ndarray,ndarray]],
         propagators:Callable[[int], Tuple[ndarray,ndarray]],
-        num_half_steps:int,
+        num_steps:int,
         num_parameters:int):
 
     def combine_derivs(
@@ -178,8 +175,8 @@ def _chain_rule(
 
             target_deriv[3] ^ post_node[1] 
             target_deriv[2] ^ post_node[0] 
-            target_deriv[0] ^ pre_node[0] 
             target_deriv[1] ^ pre_node[1] 
+            target_deriv[0] ^ pre_node[0] 
 
             final_node = target_deriv @ pre_node \
                             @ post_node
@@ -187,25 +184,25 @@ def _chain_rule(
             tensor = final_node.tensor
 
             return tensor
-    
-    total_derivs = np.zeros((num_half_steps,num_parameters),dtype='complex128')
 
-    for i in range(0,num_half_steps-1,2): # populating two elements each step
+    total_derivs = np.zeros((2*num_steps,num_parameters),dtype='complex128')
+
+    for i in range(0,num_steps): # populating two elements each step
             
-        first_half_prop,second_half_prop=propagators(i//2)
+        first_half_prop,second_half_prop=propagators(i)
         
-        first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(i//2) # returns two lists containing the derivatives w.r.t. each parameter
+        first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(i) # returns two lists containing the derivatives w.r.t. each parameter
 
         for j in range(0,num_parameters):
-            
-            total_derivs[i+1][j] = combine_derivs(
-                            adjoint_tensor[i//2],
-                            first_half_prop.T,
-                            second_half_prop_derivs[j].T)
 
-            total_derivs[i][j] = combine_derivs(
-                            adjoint_tensor[i//2],
+            total_derivs[2*i][j] = combine_derivs(
+                            adjoint_tensor[i],
                             first_half_prop_derivs[j].T,
                             second_half_prop.T)
+            
+            total_derivs[2*i+1][j] = combine_derivs(
+                adjoint_tensor[i],
+                first_half_prop.T,
+                second_half_prop_derivs[j].T)
 
     return total_derivs
