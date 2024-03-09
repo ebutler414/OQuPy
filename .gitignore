@@ -143,3 +143,4 @@ dmypy.json
 
 # pdf output from example scripts
 examples/*.pdf
+.DS_Store
