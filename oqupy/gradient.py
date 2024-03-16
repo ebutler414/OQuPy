@@ -22,6 +22,7 @@ import tensornetwork as tn
 
 from numpy import ndarray, sqrt, zeros
 
+
 from oqupy.contractions import compute_gradient_and_dynamics
 from oqupy.process_tensor import BaseProcessTensor
 from oqupy.system import ParameterizedSystem
@@ -67,7 +68,7 @@ def state_gradient(
     # compute propagator list and pass this to forward_backward_propagation
 
     if time_steps is None:
-        time_steps = range(2*len(process_tensor)) 
+        time_steps = range(2*len(process_tensor[0])) 
 
     fb_prop_result = forward_backward_propagation(
         system,
@@ -92,10 +93,10 @@ def state_gradient(
     }
     else:
         num_parameters = len(parameters[0])
-        dt = process_tensor.dt
+        dt = process_tensor[0].dt
 
         get_prop_derivatives = system.get_propagator_derivatives(dt=dt,parameters=parameters)
-        get_half_props= system.get_propagators(process_tensor.dt,parameters)
+        get_half_props= system.get_propagators(dt,parameters)
 
         final_derivs = _chain_rule(
             adjoint_tensor=grad_prop,
@@ -147,9 +148,8 @@ def forward_backward_propagation(
 
     fidelity = None
     if return_fidelity:
-        v_target = target_state.reshape(hs_dim**2)
-        v_final = dynamics.states[-1].reshape(hs_dim**2)
-        fidelity =v_target@v_final
+        fidelity= np.sum(target_state@dynamics.states[-1])
+    
     return_dict = {
         'derivatives':adjoint_tensors,
         'fidelity':fidelity,

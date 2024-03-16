@@ -132,6 +132,9 @@ def compute_dynamics(
 
     for step in range(num_steps+1):
         # -- apply pre measurement control --
+        print(step)
+        print(np.shape(current_node.tensor))
+        print("!")
         pre_measurement_control, post_measurement_control = controls(step)
 
         if pre_measurement_control is not None:
@@ -290,6 +293,7 @@ def compute_gradient_and_dynamics(
     forwardprop_derivs_list = []
 
     for step in range(num_steps+1): 
+
         # -- apply pre measurement control --
         pre_measurement_control, post_measurement_control = controls(step)
  
@@ -365,7 +369,7 @@ def compute_gradient_and_dynamics(
     target_ndarray = target_state
     target_ndarray = target_ndarray.reshape(hs_dim**2)
     target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
-    current_node = tn.Node(np.outer(final_cap,target_ndarray)) 
+    current_node = tn.Node(target_ndarray) 
     current_edges = current_node[:]
 
     combined_deriv_list = []
@@ -386,8 +390,9 @@ def compute_gradient_and_dynamics(
 
     fwd_edges = forwardprop_tensor[:]
     deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
-          
-    fwd_edges[0] ^ backprop_tensor[0] 
+
+    for i,pt_mpo in enumerate(pt_mpos):      
+        fwd_edges[i] ^ backprop_tensor[i] 
 
     deriv = deriv_forwardprop_tensor @ backprop_tensor
 
@@ -429,7 +434,8 @@ def compute_gradient_and_dynamics(
         fwd_edges = forwardprop_tensor[:]
         deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(forwardprop_tensor,fwd_edges,pt_mpos)
           
-        fwd_edges[0] ^ backprop_tensor[0] 
+        for i,pt_mpo in enumerate(pt_mpos):      
+            fwd_edges[i] ^ backprop_tensor[i] 
 
         deriv = deriv_forwardprop_tensor @ backprop_tensor
 
@@ -966,7 +972,6 @@ def _apply_pt_mpos(current_node, current_edges, pt_mpos):
         current_edges[i] = new_bond_edge
         current_edges[-1] = new_sys_edge
 
-        current_node.reorder_edges(current_edges)
     return current_node, current_edges
 
 
@@ -980,7 +985,7 @@ def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
             |        /
         |---------| /
         |         |/
-        |         |\       
+        |    i    |\       
         |---------| \        
             |        \     
             |        [2]
@@ -993,53 +998,65 @@ def _apply_derivative_pt_mpos(current_node,current_edges,pt_mpos):
                        |
 
         after mpo application:
-            [0]
-            |         [3] post_mpo_edge
+            [i]
+            |         [-1] post_mpo_edge
             |        /
         |---------| /
         |         |/
         |         |\       
         |---------| \         
             |        \        
-            |         [2] pre_mpo_edge
+            |         [-2] pre_mpo_edge
             |
             |
             |
-            |        [1] prop_edge
+            |        [-3] prop_edge
             |         |       
                       | 
     """
+    prev_prop_edge = current_edges[-1]
+    pt_mpo_node = tn.Node(pt_mpos[0])
+    pre_mpo_edge = pt_mpo_node[2]
+    new_bond_edge=pt_mpo_node[1]
+    post_mpo_edge = pt_mpo_node[3]
 
-    for i,pt_mpo in enumerate(pt_mpos):
+    prev_prop_edge.name = "prop edge"
+    pre_mpo_edge.name = "pre mpo edge 0"
+    new_bond_edge.name="bond edge 0"
+    post_mpo_edge.name = "post mpo edge 0"
+
+    current_edges[0] ^ pt_mpo_node[0]
+    current_node = current_node @ pt_mpo_node
+    current_edges = current_node[:]
+
+    bond_edges=[new_bond_edge]
+
+    for i,pt_mpo in enumerate(pt_mpos[1:]):
         if pt_mpo is None:
             continue
 
         pt_mpo_node=tn.Node(pt_mpo)
 
-        new_bond_edge=pt_mpo_node[1]
+        new_bond_edge = pt_mpo_node[1]
+        bond_edges.append(new_bond_edge)
         post_mpo_edge = pt_mpo_node[3]
-        pre_mpo_edge = pt_mpo_node[2]
-        prev_prop_edge = current_edges[-1]
 
-        new_bond_edge.name="bond edge"
-        post_mpo_edge.name = "post mpo edge"
-        pre_mpo_edge.name = "pre mpo edge"
-        prev_prop_edge.name = "prop edge"
-
+        new_bond_edge.name="bond edge "+str(i+1)
+        post_mpo_edge.name = "post mpo edge "+str(i+1)   
+  
         current_edges[0] ^ pt_mpo_node[0]
-        
-        # don't perform contraction over system edges
+
+        current_edges[-1]^pt_mpo_node[2]
 
         current_node = current_node @ pt_mpo_node
-
         current_edges = current_node[:]
+    
+    current_edges[-1]=post_mpo_edge
+    current_edges[-2]=pre_mpo_edge
+    current_edges[-3]=prev_prop_edge
 
-        current_edges[i] = new_bond_edge
-        current_edges[3] = post_mpo_edge
-        current_edges[2]=pre_mpo_edge
-        current_edges[1]=prev_prop_edge
-
-        current_node.reorder_edges(current_edges)
+    for i,mpo in enumerate(pt_mpos):
+        current_edges[i]=bond_edges[i]
 
     return current_node,current_edges
 

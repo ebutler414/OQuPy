@@ -25,10 +25,10 @@ from oqupy import state_gradient
 
 def test_fidelity_gradient():
 
-    rho_final = op.spin_dm('up')
+    rho_final = op.spin_dm('x+')
 
     dt = 0.2
-    num_steps = 100
+    num_steps = 50
 
     # -- bath --
     alpha = 0 # No bath interaction
@@ -38,13 +38,13 @@ def test_fidelity_gradient():
     pt_epsrel = 1.0e-5
 
     # -- initial and target state --
-    initial_state = op.spin_dm('down')
-    target_state = op.spin_dm('up')
+    initial_state = op.spin_dm('x-')
+    target_state = op.spin_dm('x+')
 
     # -- initial parameter guess --
     x0 = np.zeros(2*num_steps)
     y0 = np.zeros(2*num_steps)
-    z0 = np.ones(2*num_steps) * (np.pi/2) / (dt*num_steps)
+    z0 = np.ones(2*num_steps) * (np.pi) / (2*dt*num_steps)
     
     correlations = oqupy.PowerLawSD(
     alpha=alpha,
@@ -53,7 +53,7 @@ def test_fidelity_gradient():
     cutoff_type='exponential',
     temperature=temperature)
 
-    bath = oqupy.Bath(0.5 * op.sigma('y'), correlations)
+    bath = oqupy.Bath(0.0 * op.sigma('y'), correlations)
     pt_tempo_parameters = oqupy.TempoParameters(
         dt=dt,
         epsrel=pt_epsrel,
@@ -78,7 +78,7 @@ def test_fidelity_gradient():
             system=parameterized_system,
             initial_state=initial_state,
             target_state=target_state.T,
-            process_tensor=process_tensor,
+            process_tensor=[process_tensor],
             parameters=list(zip(x0,y0,z0)),
             return_fidelity=True,
             return_dynamics=True)
@@ -86,6 +86,6 @@ def test_fidelity_gradient():
     dynamics = gradient_dict['dynamics']
     derivatives = gradient_dict['gradprop']
     
-    np.testing.assert_almost_equal(rho_final,dynamics.states[-1])
+    np.testing.assert_almost_equal(rho_final,dynamics.states[-1]) # checking unitary dynamics
 
     assert True
