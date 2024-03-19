@@ -33,13 +33,9 @@ def state_gradient(
         system: ParameterizedSystem,
         initial_state: ndarray,
         target_state: ndarray,
-        process_tensor: BaseProcessTensor,
+        process_tensors: BaseProcessTensor,
         parameters: List[Tuple],
         time_steps: Optional[ndarray] = None,
-        return_dynamics: Optional[bool] = False,
-        return_gradprop: Optional[bool] = False,
-        return_gradparam: Optional[bool] = False,
-        return_fidelity: Optional[bool] = False,
         dynamics_only: Optional[bool] = False,
         ) -> Dict:
     """
@@ -68,32 +64,26 @@ def state_gradient(
     # compute propagator list and pass this to forward_backward_propagation
 
     if time_steps is None:
-        time_steps = range(2*len(process_tensor[0])) 
+        time_steps = range(len(process_tensors[0])) 
 
-    fb_prop_result = forward_backward_propagation(
+    grad_prop,dynamics = compute_gradient_and_dynamics(
         system,
         initial_state,
         target_state,
-        process_tensor,
+        process_tensors,
         parameters,
-        dynamics_only=dynamics_only,
-        return_fidelity=return_fidelity,
-        return_dynamics=return_dynamics)
-    
-    grad_prop = fb_prop_result['derivatives']
-    dynamics = fb_prop_result['dynamics']
-    fidelity = fb_prop_result['fidelity']
+        num_steps=len(time_steps),
+        dynamics_only=dynamics_only)
     
     if dynamics_only:
         return_dict = {
         'final state':dynamics.states[-1],
         'gradprop':grad_prop,
-        'dynamics':dynamics,
-        'fidelity':fidelity
+        'dynamics':dynamics
     }
     else:
         num_parameters = len(parameters[0])
-        dt = process_tensor[0].dt
+        dt = process_tensors[0].dt
 
         get_prop_derivatives = system.get_propagator_derivatives(dt=dt,parameters=parameters)
         get_half_props= system.get_propagators(dt,parameters)
@@ -102,60 +92,16 @@ def state_gradient(
             adjoint_tensor=grad_prop,
             dprop_dparam=get_prop_derivatives,
             propagators=get_half_props,
-            num_steps=len(time_steps)//2,
+            num_steps=time_steps,
             num_parameters=num_parameters)
     
         return_dict = {
             'final state':dynamics.states[-1],
             'gradprop':grad_prop,
             'gradient':final_derivs,
-            'dynamics':dynamics,
-            'fidelity':fidelity
+            'dynamics':dynamics
         }
     
-    return return_dict
-
-def forward_backward_propagation(
-        system: ParameterizedSystem,
-        initial_state: ndarray,
-        target_state: ndarray,
-        process_tensor: BaseProcessTensor,
-        parameters: List[Tuple], 
-        return_fidelity: Optional[bool] = True,
-        return_dynamics: Optional[bool] = True,
-        dynamics_only: Optional[bool]=False) -> Dict:
-    """
-    ToDo:
-    the return dictionary has the fields:
-      'derivative' : List[ndarrays]
-      'pre_propagators' : List[ndarrays]
-      'post_propagators' : List[ndarrays]
-      'pre_control' : List[Union[ndarrays,NoneType]]
-      'post_control' : List[Union[ndarrays,NoneType]]
-      'fidelity' : Optional[float]
-      'dynamics' : Optional[Dynamics]
-    """
-    adjoint_tensors,dynamics = compute_gradient_and_dynamics(
-        system=system,
-        initial_state=initial_state,
-        target_state=target_state,
-        process_tensor=process_tensor,
-        parameters=parameters,
-        record_all=return_dynamics,
-        dynamics_only=dynamics_only)
-    
-    hs_dim = 2
-
-    fidelity = None
-    if return_fidelity:
-        fidelity= np.sum(target_state@dynamics.states[-1])
-    
-    return_dict = {
-        'derivatives':adjoint_tensors,
-        'fidelity':fidelity,
-        'dynamics':dynamics
-    }
-
     return return_dict
 
 def _chain_rule(
