@@ -33,7 +33,7 @@ def state_gradient(
         system: ParameterizedSystem,
         initial_state: ndarray,
         target_state: ndarray,
-        process_tensors: BaseProcessTensor,
+        process_tensors: List[BaseProcessTensor],
         parameters: List[Tuple],
         time_steps: Optional[ndarray] = None,
         dynamics_only: Optional[bool] = False,
