@@ -15,7 +15,7 @@
 Frontend for computing the gradient of some objective function w.r.t. some
 control parameters.
 """
-from typing import Dict, Iterable, List, Optional, Tuple, Callable
+from typing import Dict, Iterable, List, Optional, Tuple, Callable,Union
 
 import numpy as np
 import tensornetwork as tn
@@ -60,25 +60,22 @@ def state_gradient(
       'dynamics' : a Dynamics object (optional) 
 
     """
-
-    # compute propagator list and pass this to forward_backward_propagation
-
+    num_steps = len(process_tensors[0])
     if time_steps is None:
-        time_steps = range(len(process_tensors[0])) 
+        time_steps = range(num_steps) 
 
     grad_prop,dynamics = compute_gradient_and_dynamics(
-        system,
-        initial_state,
-        target_state,
-        process_tensors,
-        parameters,
-        num_steps=len(time_steps),
+        system=system,
+        initial_state=initial_state,
+        target_state=target_state,
+        process_tensors=process_tensors,
+        parameters=parameters,
+        num_steps=num_steps,
         dynamics_only=dynamics_only)
     
     if dynamics_only:
         return_dict = {
         'final state':dynamics.states[-1],
-        'gradprop':grad_prop,
         'dynamics':dynamics
     }
     else:
@@ -92,7 +89,7 @@ def state_gradient(
             adjoint_tensor=grad_prop,
             dprop_dparam=get_prop_derivatives,
             propagators=get_half_props,
-            num_steps=time_steps,
+            num_steps=num_steps,
             num_parameters=num_parameters)
     
         return_dict = {

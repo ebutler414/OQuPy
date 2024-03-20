@@ -46,8 +46,7 @@ def compute_dynamics(
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
         start_time: Optional[float] = 0.0,
-        process_tensor: Optional[Union[List[BaseProcessTensor],
-                                       BaseProcessTensor]] = None,
+        process_tensors: Optional[List[BaseProcessTensor]]=None,
         control: Optional[Control] = None,
         record_all: Optional[bool] = True,
         subdiv_limit: Optional[float] = SUBDIV_LIMIT,
@@ -100,7 +99,7 @@ def compute_dynamics(
     # -- input parsing --
     parsed_parameters = _compute_dynamics_input_parse(
         False, system, initial_state, dt, num_steps, start_time,
-        process_tensor, control, record_all)
+        process_tensors, control, record_all)
     system, initial_state, dt, num_steps, start_time, \
         process_tensors, control, record_all, hs_dim = parsed_parameters
     num_envs = len(process_tensors)
@@ -196,7 +195,7 @@ def compute_gradient_and_dynamics(
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
         start_time: Optional[float] = 0.0,
-        process_tensor: Optional[Union[List[BaseProcessTensor],
+        process_tensors: Optional[Union[List[BaseProcessTensor],
                                        BaseProcessTensor]] = None,
         control: Optional[Control] = None,
         record_all: Optional[bool] = True,
@@ -252,7 +251,7 @@ def compute_gradient_and_dynamics(
     # -- input parsing --
     parsed_parameters = _compute_dynamics_input_parse(
         False, system, initial_state, dt, num_steps, start_time,
-        process_tensor, control, record_all)
+        process_tensors, control, record_all)
     system, initial_state, dt, num_steps, start_time, \
         process_tensors, control, record_all, hs_dim = parsed_parameters
 
@@ -362,9 +361,6 @@ def compute_gradient_and_dynamics(
     #  Initial state including the bond legs to the environments with:
     #    edges 0, 1, .., num_envs-1    are the bond legs of the environments
     #    edge  -1                      is the state leg
-
-    # not sure if this is correct but to get the final cap,
-    final_cap = _get_caps(process_tensors, num_steps)
 
     target_ndarray = target_state
     target_ndarray = target_ndarray.reshape(hs_dim**2)
