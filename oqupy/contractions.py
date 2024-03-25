@@ -15,7 +15,7 @@
 Module for various applications involving contractions of the process tensor.
 """
 
-from typing import List, Optional, Text, Tuple, Union, Dict
+from typing import List, Optional, Text, Tuple, Union, Callable
 
 import numpy as np
 from numpy import ndarray
@@ -191,7 +191,7 @@ def compute_gradient_and_dynamics(
         system: ParameterizedSystem,
         parameters : Optional[ndarray]=None,
         initial_state: Optional[ndarray] = None,
-        target_state: Optional[ndarray] = None,
+        target_state: Optional[Union[Callable,ndarray]] = None,
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
         start_time: Optional[float] = 0.0,
@@ -361,6 +361,9 @@ def compute_gradient_and_dynamics(
     #  Initial state including the bond legs to the environments with:
     #    edges 0, 1, .., num_envs-1    are the bond legs of the environments
     #    edge  -1                      is the state leg
+
+    if Callable(target_state):
+        target_state=target_state(states[-1])
 
     target_ndarray = target_state
     target_ndarray = target_ndarray.reshape(hs_dim**2)

@@ -32,7 +32,7 @@ from scipy.linalg import sqrtm
 def state_gradient(
         system: ParameterizedSystem,
         initial_state: ndarray,
-        target_state: ndarray,
+        target_state: Union[Callable,ndarray],
         process_tensors: List[BaseProcessTensor],
         parameters: List[Tuple],
         time_steps: Optional[ndarray] = None,
@@ -48,6 +48,15 @@ def state_gradient(
         target_state : either the state to propagate backwards, or 
                         a function, which will be called with the final state and should return the 
                         state to be back-propagated.
+        process_tensors : a list of process tensors [p1,p2,...] to contract with propagators and propagator 
+                        derivatives. They should be ordered according to the order of application of the mpos
+                        e.g. for the nth step the nth mpo of p1 is applied first, p2 second and so on.
+        parameters : a list of tuples with each tuple corresponding to the value of each parameter at a given 
+                        time step.
+        time_steps : (Optional) a list of timesteps [0,dt,...(N-1)dt].
+        dynamics_only : (Optional) when true stops the calculation after the forward propagation and returns
+                        the dynamics only, otherwise does the full calculation.
+
 
     The return dictionary has the fields:
       'final state' : the final state after evolving the initial state
