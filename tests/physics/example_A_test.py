@@ -31,17 +31,6 @@ initial_state_A = np.array([[1.0,0.0],[0.0,0.0]])
 # System operator
 h_sys_A = np.array([[0.0,0.5],[0.5,0.0]])
 
-def get_hamiltonian_discrete():
-    """
-    Returns a callable which takes a set of parameters for a given time and returns the corresponding Hamiltonian
-
-    """
-    def hamiltonian(hy):
-
-        return h_sys_A * hy
-    
-    return hamiltonian
-
 # Markovian dissipation
 gamma_A_1 = 0.1 # with sigma minus
 gamma_A_2 = 0.2 # with sigma z
@@ -69,9 +58,7 @@ bath_A = oqupy.Bath(coupling_operator_A,
                     correlations_A,
                     name="phonon bath") 
 
-parameters = np.ones(t_end_A/0.05) # since constant Hamiltonian, parameters is just list of ones
-
-system_A = oqupy.ParameterizedSystem(get_hamiltonian_discrete(parameters),
+system_A = oqupy.System(h_sys_A,
                         gammas=[gamma_A_1, gamma_A_2],
                         lindblad_operators=[oqupy.operators.sigma("-"),
                                             oqupy.operators.sigma("z")])

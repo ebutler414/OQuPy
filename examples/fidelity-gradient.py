@@ -16,23 +16,12 @@ from typing import List,Tuple
 
 
 # --- Parameters --------------------------------------------------------------
-'''
-# -- time steps --
-dt = 0.05
-num_steps = 200
-
-# -- bath --
-alpha = 0.08
-omega_cutoff = 4.0
-temperature = 1.6
-pt_dkmax = 40
-pt_epsrel = 1.0e-5
-'''
 
 # parameters used in https://arxiv.org/abs/2303.16002
+
 # -- time steps --
 dt = 0.05 # 0.2
-total_steps = 100# 20
+total_steps = 50# 20
 
 # -- bath --
 alpha =  0.126 #0.08
@@ -58,6 +47,7 @@ z0 = np.ones(total_steps) * (np.pi) / (dt*total_steps)
 x0 = np.zeros(total_steps)
 
 test_parameter_list = list(zip(x0,y0,z0))
+
 # --- Choose timestep of Fidelity -----------
 
 num_steps = total_steps
@@ -73,8 +63,8 @@ elif end_step <  total_steps:
     num_steps=end_step
     timesteps=range(2*end_step)
 else:
-    for i in range(2*total_steps,2*end_step):
-        parameter_list.append(parameter_list[0])
+    for i in range(0,2*(end_step-total_steps)):
+        parameter_list.append(parameter_list[i])
     num_steps=end_step
     timesteps=range(2*end_step)
 
@@ -101,6 +91,8 @@ process_tensor = oqupy.pt_tempo_compute(
 
 # --- Define parametrized system ----------------------------------------------
 
+hs_dim = 2
+
 def hamiltonian(x, y, z):
     h = np.zeros((2,2),dtype='complex128')
     for var, var_name in zip([x,y,z], ['x', 'y', 'z']):
@@ -117,13 +109,16 @@ fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
         target_state=target_state.T,
-        process_tensor=process_tensor,
+        process_tensors=[process_tensor],
         parameters=parameter_list,
-        time_steps=timesteps,
-        return_fidelity=True,
-        return_dynamics=True)
+        time_steps=timesteps)
 
-print(f"the fidelity is {fidelity_dict['fidelity']}")
+final_state = fidelity_dict['dynamics'].states[-1]
+v_final_state = np.reshape(final_state,hs_dim**2)
+v_target_state = np.reshape(target_state.T,hs_dim**2)
+fidelity = v_target_state @ v_final_state
+
+print(f"the fidelity is {fidelity}")
 print(f"the fidelity gradient is {fidelity_dict['gradient']}")
 t, s_x = fidelity_dict['dynamics'].expectations(op.sigma("x"))
 t, s_y = fidelity_dict['dynamics'].expectations(op.sigma("y"))
@@ -135,73 +130,42 @@ plt.plot(t,s_x,label='x')
 plt.plot(t,s_y,label='y')
 plt.plot(t,s_z,label='z')
 
+plt.ylabel(r"$h_i$",rotation=0,fontsize=16)
+plt.xlabel("t")
+
 plt.legend()
 
 # ----------- Optimisation of control parameters w.r.t. infidelity ---------------
 
-def flatten_list(parameter_list):
-    parameter_list_flat = [
-    x
-    for xs in parameter_list
-    for x in xs
-    ]
-    return parameter_list_flat
+def infidandgrad(paras):
+    """""
+    Take a numpy array [hx0, hz0, hx1, hz1, ...] over full timesteps and
+    return the fidelity and gradient of the fidelity to the global target_state
+    """
 
-def unflatten_list(flat_list):
+    # Reshape flat parameter list to form accepted by state_gradient: [[hx0,hz0],[hx1,hz1,]...]
+    reshapedparas=[i for i in (paras.reshape((-1,num_params))).tolist() for j in range(2)]
 
-    parameter_list = np.reshape(flat_list,(-1,num_params))
-    return parameter_list
-
-def copy_adjacent_elements(list:List)->List:
-    double_list = []
-    for entry in list:
-         double_list.append(entry)
-         double_list.append(entry)
-    return double_list
-
-def infidelity(parameter_list_flat):
-
-    parameter_list = unflatten_list(parameter_list_flat)
-
-    piecewiseconst_params=copy_adjacent_elements(parameter_list)
-
-    return_dict = state_gradient(system=parametrized_system,
+    gradient_dict=oqupy.state_gradient(system=parametrized_system,
         initial_state=initial_state,
         target_state=target_state.T,
-        process_tensor=process_tensor,
-        parameters=piecewiseconst_params,
-        time_steps=timesteps,
-        return_fidelity=True,
-        return_dynamics=False,
-        dynamics_only=True)
+        process_tensors=[process_tensor],
+        parameters=reshapedparas)
     
-    return -return_dict['fidelity'].real
+    fs=gradient_dict['final state']
+    gps=gradient_dict['gradient']
+    fidelity=np.sum(fs*target_state.T)
 
-# infidelity gradient to point optimiser in the right direction (note: minimising infidelity therefore jacobian multiplied by -1)
-def fidelity_jacobian(parameter_list_flat):
+    # Adding adjacent elements
+    for i in range(0,gps.shape[0],2): 
+        gps[i,:]=gps[i,:]+gps[i+1,:]
+        
+    gps=gps[0::2]
 
-    parameter_list = list(unflatten_list(parameter_list_flat))
+    # Return the minus the gradient as infidelity is being minimized 
+    return 1-fidelity.real,(-1.0*gps.reshape((-1)).real).tolist()
 
-    piecewiseconst_params=copy_adjacent_elements(parameter_list)
-
-    fidelity_dict = state_gradient(
-        system=parametrized_system,
-        initial_state=initial_state,
-        target_state=target_state.T,
-        process_tensor=process_tensor,
-        time_steps=timesteps,
-        parameters=piecewiseconst_params)
-    
-    fidelity_jacobian = fidelity_dict['gradient']
-
-    piecewiseconst_jacob = np.reshape(fidelity_jacobian,(num_steps,2,num_params)).sum(axis=1)
-
-    flat_jacobian = flatten_list(piecewiseconst_jacob)
-
-    fort_jac =np.asfortranarray(flat_jacobian)
-
-    return -fort_jac.real
-
+# Set upper and lower bounds on control parameters
 x_bound = [-5*np.pi,5*np.pi]
 y_bound = [0,0] 
 z_bound = [-np.pi,np.pi]
@@ -213,53 +177,44 @@ for i in range(0, num_params*num_steps,num_params):
         bounds[i+1] = y_bound
         bounds[i+2] = z_bound
 
-test_parameter_list_flat = flatten_list(test_parameter_list)
+parameter_list=[item for pair in zip(x0, y0, z0) for item in pair]
 
 optimization_result = minimize(
-                        fun=infidelity,
-                        x0=test_parameter_list_flat,
+                        fun=infidandgrad,
+                        x0=parameter_list,
                         method='L-BFGS-B',
-                        jac=fidelity_jacobian,
+                        jac=True,
                         bounds=bounds,
-                        callback=infidelity,
                         options = {'disp':True, 'gtol': 7e-05}
 )
 
-print("The maximal fidelity was found to be : ",-optimization_result.fun)
+print("The maximal fidelity was found to be : ",1-optimization_result.fun)
 
-print("The jacobian was found to be : ",optimization_result.jac)
+print("The Jacobian was found to be : ",optimization_result.jac)
 
-optimized_parameters_flat = optimization_result.x
+optimized_params = optimization_result.x
+reshapedparas=[i for i in (optimized_params.reshape((-1,num_params))).tolist() for j in range(2)]
 
-times = np.arange(0,num_steps)
+times = dt*np.arange(0,num_steps)
 
-optimized_parameters = np.reshape(optimized_parameters_flat,(num_steps,num_params))
-optimized_parameters_double = copy_adjacent_elements(np.reshape(optimized_parameters_flat,(num_steps,num_params)))
-
+# Input optimized controls into state_gradient to show dynamics of system under optimized fields
 optimized_dynamics = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
         target_state=target_state,
-        process_tensor=process_tensor,
-        parameters=optimized_parameters_double,
-        time_steps=timesteps,
-        return_fidelity=True,
-        return_dynamics=True)
+        process_tensors=[process_tensor],
+        parameters=reshapedparas,
+        time_steps=timesteps)
 
 fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1) 
 fig.suptitle("Optimisation results")
 
-optimized_x = np.array([parameter[0] for parameter in optimized_parameters])
-optimized_y = np.array([parameter[1] for parameter in optimized_parameters])
-optimized_z = np.array([parameter[2] for parameter in optimized_parameters])
-
-ax1.plot(times,optimized_x,label='x')
-ax1.plot(times,optimized_y,label='y')
-ax1.plot(times,optimized_z,label='z')
-
+field_labels = ["x","y","z"]
+for i in range(0,num_params):
+    ax1.plot(times,optimization_result['x'][i::num_params],label=field_labels[i])
+ax1.set_ylabel(r"$h_i$",rotation=0,fontsize=16)
+ax1.set_xlabel("t")
 ax1.legend()
-
-from scipy.linalg import sqrtm
 
 dynamics = optimized_dynamics['dynamics']
 
@@ -272,6 +227,8 @@ ax2.plot(t,bloch_y,label='y')
 ax2.plot(t,bloch_z,label='z')
 bloch_length = np.sqrt(bloch_x**2 +bloch_y**2 + bloch_z**2)
 ax2.plot(t,bloch_length,label=r'$|\mathbf{\sigma}|$')
+ax2.set_ylabel(r"$\langle \sigma \rangle$",rotation=0,fontsize=16)
+ax2.set_xlabel("t")
 
 plt.legend()
 
