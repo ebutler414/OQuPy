@@ -46,7 +46,7 @@ def compute_dynamics(
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
         start_time: Optional[float] = 0.0,
-        process_tensors: Optional[List[BaseProcessTensor]]=None,
+        process_tensor: Optional[Union[List[BaseProcessTensor],BaseProcessTensor]]=None,
         control: Optional[Control] = None,
         record_all: Optional[bool] = True,
         subdiv_limit: Optional[float] = SUBDIV_LIMIT,
@@ -99,10 +99,10 @@ def compute_dynamics(
     # -- input parsing --
     parsed_parameters = _compute_dynamics_input_parse(
         False, system, initial_state, dt, num_steps, start_time,
-        process_tensors, control, record_all)
+        process_tensor, control, record_all)
     system, initial_state, dt, num_steps, start_time, \
-        process_tensors, control, record_all, hs_dim = parsed_parameters
-    num_envs = len(process_tensors)
+        process_tensor, control, record_all, hs_dim = parsed_parameters
+    num_envs = len(process_tensor)
 
     # -- prepare propagators --
     propagators = system.get_propagators(dt, start_time, subdiv_limit, liouvillian_epsrel)
@@ -131,9 +131,7 @@ def compute_dynamics(
 
     for step in range(num_steps+1):
         # -- apply pre measurement control --
-        print(step)
-        print(np.shape(current_node.tensor))
-        print("!")
+
         pre_measurement_control, post_measurement_control = controls(step)
 
         if pre_measurement_control is not None:
@@ -145,7 +143,7 @@ def compute_dynamics(
 
         # -- extract current state -- update field --
         if record_all:
-            caps = _get_caps(process_tensors, step)
+            caps = _get_caps(process_tensor, step)
             state_tensor = _apply_caps(current_node, current_edges, caps)
             state = state_tensor.reshape(hs_dim, hs_dim)
             states.append(state)
@@ -160,7 +158,7 @@ def compute_dynamics(
         # -- propagate one time step --
         first_half_prop, second_half_prop = propagators(step)
 
-        pt_mpos = _get_pt_mpos(process_tensors, step)
+        pt_mpos = _get_pt_mpos(process_tensor, step)
 
         current_node, current_edges = _apply_system_superoperator(
             current_node, current_edges, first_half_prop)
@@ -171,7 +169,7 @@ def compute_dynamics(
             current_node, current_edges, second_half_prop)
 
     # -- extract last state --
-    caps = _get_caps(process_tensors, step)
+    caps = _get_caps(process_tensor, step)
     state_tensor = _apply_caps(current_node, current_edges, caps)
     final_state = state_tensor.reshape(hs_dim, hs_dim)
     states.append(final_state)
@@ -310,7 +308,6 @@ def compute_gradient_and_dynamics(
             state_tensor = _apply_caps(current_node, current_edges, caps)
             state = state_tensor.reshape(hs_dim, hs_dim)
             states.append(state)
-
 
         prog_bar.update(step)
 

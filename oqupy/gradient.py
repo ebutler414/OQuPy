@@ -91,8 +91,9 @@ def state_gradient(
         num_parameters = len(parameters[0])
         dt = process_tensors[0].dt
 
-        get_prop_derivatives = system.get_propagator_derivatives(dt=dt,parameters=parameters)
         get_half_props= system.get_propagators(dt,parameters)
+        get_prop_derivatives = system.get_propagator_derivatives(dt,parameters)
+        
 
         final_derivs = _chain_rule(
             adjoint_tensor=grad_prop,
@@ -122,6 +123,7 @@ def _chain_rule(
             pre_prop,
             post_prop):
 
+            target_deriv = tn.Node(target_deriv)
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
 

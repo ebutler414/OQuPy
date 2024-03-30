@@ -280,10 +280,34 @@ class TimeDependentSystem(BaseSystem):
 
 class ParameterizedSystem(BaseSystem):
     r"""
-    ToDo:
-    Tell the user to use a parametrization for `hamiltonian` such that it is as
-    smooth as possible and roughly normalized between 0.0 and 1.0.
-    (This avoids issues with finite differencing.)
+    Represents a time discrete system with parameterized Hamiltonian H(u_i(t)) and 
+    time-dependent parameters u_i(t). It is also possible to include (also explicitly 
+    time-dependent) Lindblad terms in the Master equation. The equation of motion is
+
+        .. math::
+
+        \frac{d}{dt}\rho(t) = &-i [\hat{H}(u_i(t)), \rho(t)] \\
+            &+ \sum_n^N \gamma_n \left(
+                \hat{A}_n \rho(t) \hat{A}_n^\dagger
+                - \frac{1}{2} \hat{A}_n^\dagger \hat{A}_n \rho(t)
+                - \frac{1}{2} \rho(t) \hat{A}_n^\dagger \hat{A}_n \right)
+
+    with `parameterized hamiltionian` :math:`\hat{H}(u_i(t))`, the rates `gammas` :math:`\gamma_n` and
+    `linblad_operators` :math:`\hat{A}_n`.
+
+    Parameters
+    ----------
+    hamiltonian: callable, accepts list(tuple) and returns ndarray
+        System-only Hamiltonian :math:`\hat{H}`.
+    gammas: list(callable): callable accepts list[tuple] and returns float
+        The rates :math:`\gamma_n`.
+    lindblad_operators: list(callable): callable accepts list(tuple) and returns ndarray
+        The Lindblad operators :math:`\hat{A}_n`.
+    name: str
+        An optional name for the system.
+    description: str
+        An optional description of the system.
+    
     """
     def __init__(
             self,
