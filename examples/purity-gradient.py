@@ -33,7 +33,7 @@ pt_epsrel = 10**(-7) #1.0e-5
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
 # (derivative of the purity is 2*transpose of the state)
-target_state = lambda rho : 2*rho.T
+target_derivative = lambda rho : 2*rho.T
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
@@ -109,15 +109,15 @@ from oqupy.gradient import state_gradient
 fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_derivative=target_derivative,
         process_tensors=[process_tensor],
         parameters=parameter_list,
         time_steps=timesteps)
 
 final_state = fidelity_dict['dynamics'].states[-1]
 v_final_state = np.reshape(final_state,hs_dim**2)
-v_target_state = np.reshape(target_state(final_state),hs_dim**2)
-fidelity = v_target_state @ v_final_state
+v_target_derivative = np.reshape(target_derivative(final_state),hs_dim**2)
+fidelity = v_target_derivative @ v_final_state
 
 print(f"the fidelity is {fidelity}")
 print(f"the fidelity gradient is {fidelity_dict['gradient']}")
@@ -131,7 +131,7 @@ plt.plot(t,s_x,label='x')
 plt.plot(t,s_y,label='y')
 plt.plot(t,s_z,label='z')
 
-plt.ylabel(r"$h_i$",rotation=0,fontsize=16)
+plt.ylabel(r"$\langle sigma \rangle$",rotation=0,fontsize=16)
 plt.xlabel("t")
 
 plt.legend()
@@ -141,7 +141,7 @@ plt.legend()
 def purityandgrad(paras):
     """""
     Take a numpy array [hx0, hz0, hx1, hz1, ...] over full timesteps and
-    return the fidelity and gradient of the fidelity to the global target_state
+    return the purity and gradient of the purity to the global target_derivative
     """
 
     # Reshape flat parameter list to form accepted by state_gradient: [[hx0,hz0],[hx1,hz1,]...]
@@ -149,7 +149,7 @@ def purityandgrad(paras):
 
     gradient_dict=oqupy.state_gradient(system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_derivative=target_derivative,
         process_tensors=[process_tensor],
         parameters=reshapedparas)
     
@@ -189,7 +189,7 @@ optimization_result = minimize(
                         options = {'disp':True, 'gtol': 7e-05}
 )
 
-print("The maximal fidelity was found to be : ",1-optimization_result.fun)
+print("The maximal purity was found to be : ",1-optimization_result.fun)
 
 print("The Jacobian was found to be : ",optimization_result.jac)
 
@@ -202,7 +202,7 @@ times = dt*np.arange(0,num_steps)
 optimized_dynamics = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state(initial_state),
+        target_derivative=target_derivative(initial_state),
         process_tensors=[process_tensor],
         parameters=reshapedparas,
         time_steps=timesteps)

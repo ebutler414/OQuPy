@@ -19,81 +19,91 @@ import pytest
 import numpy as np
 from numpy import ndarray
 
-from typing import Callable,List,Tuple
+from typing import Dict
 
 import oqupy
 import oqupy.operators as op
 
 from oqupy.gradient import state_gradient
-from oqupy.gradient import forward_backward_propagation
 
-def test_forward_backward_propagation():
-    assert True
+def test_state_gradient():
+    start_time=0
+    num_steps=3
+    dt=0.2
+    end_time=start_time+num_steps*dt
+    initial_state = oqupy.operators.spin_dm('x-')
+    target_derivative = oqupy.operators.spin_dm('x+')
 
-def test_fidelity_gradient():
+    x0 = np.ones(2*num_steps)
+    x0=list(zip(x0))
 
-    dt = 0.2
-    num_steps = 20
+    def discrete_h_sys(hx):
+        return 0.5*hx * oqupy.operators.sigma('x')
 
-    # -- bath --
-    alpha = 0.08
-    omega_cutoff = 4.0
-    temperature = 1.6
-    pt_dkmax = 40
-    pt_epsrel = 1.0e-5
+    system= oqupy.ParameterizedSystem(hamiltonian=discrete_h_sys)
 
-    # -- initial and target state --
-    initial_state = op.spin_dm('down')
-    target_state = op.spin_dm('x-')
+    correlations = oqupy.PowerLawSD(alpha=3,
+                                zeta=1,
+                                cutoff=1.0,
+                                cutoff_type='gaussian',
+                                temperature=0.0)
+    bath = oqupy.Bath(0.5 * oqupy.operators.sigma("x"), correlations)
 
-    # -- initial parameter guess --
-    x0 = np.zeros(2*num_steps)
-    y0 = np.ones(2*num_steps) * (np.pi/2) / (dt*num_steps)
-    z0 = np.zeros(2*num_steps)
-
-    correlations = oqupy.PowerLawSD(
-    alpha=alpha,
-    zeta=1,
-    cutoff=omega_cutoff,
-    cutoff_type='exponential',
-    temperature=temperature)
-
-    bath = oqupy.Bath(0.5 * op.sigma('y'), correlations)
-    pt_tempo_parameters = oqupy.TempoParameters(
-        dt=dt,
-        epsrel=pt_epsrel,
-        dkmax=pt_dkmax)
-    process_tensor = oqupy.pt_tempo_compute(
-        bath=bath,
-        start_time=0.0,
-        end_time=num_steps * dt,
-        parameters=pt_tempo_parameters,
-        progress_type='bar')
+    tempo_params =oqupy.TempoParameters(dt=0.2,tcut=None,epsrel=10**(-7))
+    pt = oqupy.pt_tempo_compute(
+        bath,
+        start_time=start_time,
+        end_time=end_time,
+        parameters=tempo_params)
     
-    def hamiltonian(x, y, z):
-        h = np.zeros((2,2),dtype='complex128')
-        for var, var_name in zip([x,y,z], ['x', 'y', 'z']):
-            h += var * op.sigma(var_name)
-        return h
+    grad_dict = state_gradient(system=system,
+                               initial_state=initial_state,
+                               target_derivative=target_derivative.T,
+                               process_tensors=[pt],
+                               parameters=x0)
     
-    parameterized_system = oqupy.ParameterizedSystem(hamiltonian)
+    # Check return value is correct type
+    assert isinstance(grad_dict,Dict)
+    # Check shape of gradient list is that of the input parameters
+    assert np.shape(grad_dict['gradient']) == np.shape(x0)
+    # Check there are N gradient tensors
+    assert len(grad_dict['gradprop']) == num_steps 
+    # Check there are N+1 states
+    assert len(grad_dict['dynamics']) == num_steps+1
+    # Check the last element of the dynamics object is equal to the final state
+    assert np.allclose(grad_dict['dynamics'].states[-1],grad_dict['final state'])
 
-    gradient_dict = state_gradient(
-            system=parameterized_system,
-            initial_state=initial_state,
-            target_state=target_state,
-            process_tensor=process_tensor,
-            parameters=list(zip(x0,y0,z0)),
-            return_fidelity=True,
-            return_dynamics=True)
-    
-    dynamics = gradient_dict['dynamics']
-    derivatives = gradient_dict['gradprop']
-    
-    assert isinstance(dynamics,oqupy.Dynamics)
-    assert callable(hamiltonian)
 
-    assert len(derivatives) == process_tensor.__len__()
-    assert len(derivatives)+1 == len(dynamics)
-    
+def test_chain_rule():
 
+    num_steps=3
+    dt=0.2
+
+    x0 = np.ones(2*num_steps)
+    x0=list(zip(x0))
+    num_params=1
+
+    def discrete_h_sys(hx):
+        return 0.5*hx * oqupy.operators.sigma('x')
+    system= oqupy.ParameterizedSystem(hamiltonian=discrete_h_sys)
+
+    propagators = system.get_propagators(dt,x0)
+    propagator_derivatives = system.get_propagator_derivatives(dt,x0)
+
+    # rank-4 tensor
+    dummy_tensor = np.ones((4,4,4,4,4))
+    
+    tot_derivs = oqupy.gradient._chain_rule(adjoint_tensor=dummy_tensor,
+                                            dprop_dparam=propagator_derivatives,
+                                            propagators=propagators,
+                                            num_steps=num_steps,
+                                            num_parameters=num_params)
+    
+    # Check the shapes of the derivatives and parameters are correct
+    assert np.shape(tot_derivs) == (2*num_steps,num_params)
+    assert np.shape(x0) == (2*num_steps,num_params)
+    # Check the propagators and derivatives are callables
+    assert callable(propagators)
+    assert callable(propagator_derivatives)
+    # Check the tot_derivs is a numpy array
+    assert isinstance(tot_derivs,ndarray)

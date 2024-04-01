@@ -189,7 +189,7 @@ def compute_gradient_and_dynamics(
         system: ParameterizedSystem,
         parameters : Optional[ndarray]=None,
         initial_state: Optional[ndarray] = None,
-        target_state: Optional[Union[Callable,ndarray]] = None,
+        target_derivative: Optional[Union[Callable,ndarray]] = None,
         dt: Optional[float] = None,
         num_steps: Optional[int] = None,
         start_time: Optional[float] = 0.0,
@@ -212,7 +212,7 @@ def compute_gradient_and_dynamics(
         Object containing the system Hamiltonian information.
     initial_state: ndarray
         Initial system state.
-    target_state:
+    target_derivative:
         Some pure target state or derivative w.r.t. an objective functioni
     dt: float
         Length of a single time step.
@@ -253,7 +253,7 @@ def compute_gradient_and_dynamics(
     system, initial_state, dt, num_steps, start_time, \
         process_tensors, control, record_all, hs_dim = parsed_parameters
 
-    assert target_state is not None, \
+    assert target_derivative is not None, \
         'target state must be given explicitly'
 
     num_envs = len(process_tensors)
@@ -361,10 +361,10 @@ def compute_gradient_and_dynamics(
     #    edges 0, 1, .., num_envs-1    are the bond legs of the environments
     #    edge  -1                      is the state leg
 
-    if callable(target_state):
-        target_state=target_state(states[-1])
+    if callable(target_derivative):
+        target_derivative=target_derivative(states[-1])
 
-    target_ndarray = target_state
+    target_ndarray = target_derivative
     target_ndarray = target_ndarray.reshape(hs_dim**2)
     target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
     current_node = tn.Node(target_ndarray) 

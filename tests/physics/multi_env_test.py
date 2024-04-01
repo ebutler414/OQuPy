@@ -80,13 +80,13 @@ def test_multi_env_gradient():
     dyns = oqupy.compute_gradient_and_dynamics(
                                   process_tensors=[pt,pt],
                                   initial_state=initial_state,
-                                  target_state=target_deriv,
+                                  target_derivative=target_deriv,
                                   dt=dt,
                                   system=parameterized_sys,
                                   parameters=parameter_list)
     dyns2 = oqupy.compute_gradient_and_dynamics(process_tensors=[pt2],
                                 initial_state=initial_state,
-                                target_state=target_deriv,
+                                target_derivative=target_deriv,
                                 system=parameterized_sys,
                                 dt=dt,
                                 parameters=parameter_list)

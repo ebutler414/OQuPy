@@ -26,7 +26,7 @@ from oqupy import process_tensor
 # -- Test I: Spin boson model gradient -------------------------------------------------
 
 # Target state
-target_state_I=np.array([[0,0.0],[0.0,1.0]])
+target_derivative_I=np.array([[0,0.0],[0.0,1.0]])
 
 # Initial state:
 initial_state_I = np.array([[1.0,0.0],[0.0,0.0]])
@@ -369,7 +369,7 @@ def test_tempo_gradient_backend_I():
                                                     parameters=x0,
                                                     process_tensors=[pt],
                                                     initial_state=initial_state_I,
-                                                    target_state=target_state_I.T
+                                                    target_derivative=target_derivative_I.T
                                                     )
 
     np.testing.assert_almost_equal(dyn.states[-1], rho_I, decimal=4)

@@ -32,7 +32,7 @@ from scipy.linalg import sqrtm
 def state_gradient(
         system: ParameterizedSystem,
         initial_state: ndarray,
-        target_state: Union[Callable,ndarray],
+        target_derivative: Union[Callable,ndarray],
         process_tensors: List[BaseProcessTensor],
         parameters: List[Tuple],
         time_steps: Optional[ndarray] = None,
@@ -45,7 +45,7 @@ def state_gradient(
     Inputs:
         system : ParameterizedSystem object to compute the dynamics
         initial_state : the initial density matrix to propagate forwards
-        target_state : either the state to propagate backwards, or 
+        target_derivative : either the state to propagate backwards, or 
                         a function, which will be called with the final state and should return the 
                         state to be back-propagated.
         process_tensors : a list of process tensors [p1,p2,...] to contract with propagators and propagator 
@@ -76,7 +76,7 @@ def state_gradient(
     grad_prop,dynamics = compute_gradient_and_dynamics(
         system=system,
         initial_state=initial_state,
-        target_state=target_state,
+        target_derivative=target_derivative,
         process_tensors=process_tensors,
         parameters=parameters,
         num_steps=num_steps,
@@ -126,6 +126,9 @@ def _chain_rule(
             target_deriv = tn.Node(target_deriv)
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
+
+            for edge in target_deriv:
+                 print(edge.dimension)
 
             target_deriv[3] ^ post_node[1] 
             target_deriv[2] ^ post_node[0] 

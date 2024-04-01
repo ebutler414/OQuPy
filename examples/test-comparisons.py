@@ -9,7 +9,7 @@ from oqupy import process_tensor
 # -- Test A: Spin boson model -------------------------------------------------
 
 # Target state
-target_state_I=lambda rho_final: 2*rho_final.T
+target_derivative_I=lambda rho_final: 2*rho_final.T
 
 # Initial state:
 initial_state_I = np.array([[1.0,0.0],[0.0,1.0]])
@@ -76,13 +76,13 @@ grad,dyn = oqupy.compute_gradient_and_dynamics(system=system_I,
                                                 parameters=x0,
                                                 process_tensors=[pt],
                                                 initial_state=initial_state_I,
-                                                target_state=target_state_I
+                                                target_derivative=target_derivative_I
                                                 )
 grad_dict = oqupy.state_gradient(system=system_I,
                                                 parameters=x0,
                                                 process_tensors=[pt],
                                                 initial_state=initial_state_I,
-                                                target_state=target_state_I
+                                                target_derivative=target_derivative_I
                                                 )
 
 

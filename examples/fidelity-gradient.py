@@ -32,7 +32,7 @@ pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
-target_state = op.spin_dm('x+')
+target_derivative = op.spin_dm('x+')
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
@@ -108,15 +108,15 @@ from oqupy.gradient import state_gradient
 fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_derivative=target_derivative.T,
         process_tensors=[process_tensor],
         parameters=parameter_list,
         time_steps=timesteps)
 
 final_state = fidelity_dict['dynamics'].states[-1]
 v_final_state = np.reshape(final_state,hs_dim**2)
-v_target_state = np.reshape(target_state.T,hs_dim**2)
-fidelity = v_target_state @ v_final_state
+v_target_derivative = np.reshape(target_derivative.T,hs_dim**2)
+fidelity = v_target_derivative @ v_final_state
 
 print(f"the fidelity is {fidelity}")
 print(f"the fidelity gradient is {fidelity_dict['gradient']}")
@@ -140,7 +140,7 @@ plt.legend()
 def infidandgrad(paras):
     """""
     Take a numpy array [hx0, hz0, hx1, hz1, ...] over full timesteps and
-    return the fidelity and gradient of the fidelity to the global target_state
+    return the fidelity and gradient of the fidelity to the global target_derivative
     """
 
     # Reshape flat parameter list to form accepted by state_gradient: [[hx0,hz0],[hx1,hz1,]...]
@@ -148,13 +148,13 @@ def infidandgrad(paras):
 
     gradient_dict=oqupy.state_gradient(system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_derivative=target_derivative.T,
         process_tensors=[process_tensor],
         parameters=reshapedparas)
     
     fs=gradient_dict['final state']
     gps=gradient_dict['gradient']
-    fidelity=np.sum(fs*target_state.T)
+    fidelity=np.sum(fs*target_derivative.T)
 
     # Adding adjacent elements
     for i in range(0,gps.shape[0],2): 
@@ -201,7 +201,7 @@ times = dt*np.arange(0,num_steps)
 optimized_dynamics = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_derivative=target_derivative.T,
         process_tensors=[process_tensor],
         parameters=reshapedparas,
         time_steps=timesteps)

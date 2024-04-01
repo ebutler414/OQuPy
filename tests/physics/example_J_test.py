@@ -23,10 +23,10 @@ from oqupy import process_tensor
 
 
 # -----------------------------------------------------------------------------
-# -- Test J: Spin-Boson model gradient (time-dependent) -------------------------------------------------
+# -- Test J: Spin-Boson model gradient (time-dependent system, functional target state) -------------------------------------------------
 
 # Target state : e.g. derivative of the purity
-target_state_J=lambda rho: 2*rho.T
+target_derivative_J=lambda rho: 2*rho.T
 
 # Initial state (mixed):
 initial_state_J = np.array([[1.0,0.0],[0.0,1.0]])
@@ -241,15 +241,15 @@ def test_tempo_gradient_backend_J():
                                                     parameters=x0,
                                                     process_tensors=[pt],
                                                     initial_state=initial_state_J,
-                                                    target_state=target_state_J
+                                                    target_derivative=target_derivative_J
                                                     )
 
     np.testing.assert_almost_equal(dyn.states[-1], rho_J, decimal=4)
     np.testing.assert_almost_equal(grad_prop[0].tensor,grad_prop_J,decimal=4)
 
 def test_tempo_chainrule_backend_J():
-    get_props = system_J.get_propagators(dt,parameters=x0)
-    get_prop_derivatives = system_J.get_propagator_derivatives(dt=dt,parameters=x0)
+    get_props = system_J.get_propagators(dt,x0)
+    get_prop_derivatives = system_J.get_propagator_derivatives(dt,x0)
 
     grad_params = oqupy.gradient._chain_rule(adjoint_tensor=[grad_prop_J],
                                             dprop_dparam=get_prop_derivatives,
