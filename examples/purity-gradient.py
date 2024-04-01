@@ -32,7 +32,8 @@ pt_epsrel = 10**(-7) #1.0e-5
 
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
-target_state = op.spin_dm('x+')
+# (derivative of the purity is 2*transpose of the state)
+target_state = lambda rho : 2*rho.T
 
 # -- initial parameter guess --
 y0 = np.zeros(2*total_steps)
@@ -101,21 +102,21 @@ def hamiltonian(x, y, z):
 
 parametrized_system = oqupy.ParameterizedSystem(hamiltonian)
 
-# --- Compute fidelity, dynamics, and fidelity gradient -----------------------
+# --- Compute purity, dynamics, and purity gradient -----------------------
 
 from oqupy.gradient import state_gradient
 
 fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_state=target_state,
         process_tensors=[process_tensor],
         parameters=parameter_list,
         time_steps=timesteps)
 
 final_state = fidelity_dict['dynamics'].states[-1]
 v_final_state = np.reshape(final_state,hs_dim**2)
-v_target_state = np.reshape(target_state.T,hs_dim**2)
+v_target_state = np.reshape(target_state(final_state),hs_dim**2)
 fidelity = v_target_state @ v_final_state
 
 print(f"the fidelity is {fidelity}")
@@ -135,9 +136,9 @@ plt.xlabel("t")
 
 plt.legend()
 
-# ----------- Optimisation of control parameters w.r.t. infidelity ---------------
+# ----------- Optimisation of control parameters w.r.t. purity ---------------
 
-def infidandgrad(paras):
+def purityandgrad(paras):
     """""
     Take a numpy array [hx0, hz0, hx1, hz1, ...] over full timesteps and
     return the fidelity and gradient of the fidelity to the global target_state
@@ -148,13 +149,13 @@ def infidandgrad(paras):
 
     gradient_dict=oqupy.state_gradient(system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_state=target_state,
         process_tensors=[process_tensor],
         parameters=reshapedparas)
     
     fs=gradient_dict['final state']
     gps=gradient_dict['gradient']
-    fidelity=np.sum(fs*target_state.T)
+    purity=np.trace(fs@fs)
 
     # Adding adjacent elements
     for i in range(0,gps.shape[0],2): 
@@ -162,8 +163,8 @@ def infidandgrad(paras):
         
     gps=gps[0::2]
 
-    # Return the minus the gradient as infidelity is being minimized 
-    return 1-fidelity.real,(-1.0*gps.reshape((-1)).real).tolist()
+    # Return the minus the gradient as impurity is being minimized 
+    return 1-purity.real,(-1.0*gps.reshape((-1)).real).tolist()
 
 # Set upper and lower bounds on control parameters
 x_bound = [-5*np.pi,5*np.pi]
@@ -180,7 +181,7 @@ for i in range(0, num_params*num_steps,num_params):
 parameter_list=[item for pair in zip(x0, y0, z0) for item in pair]
 
 optimization_result = minimize(
-                        fun=infidandgrad,
+                        fun=purityandgrad,
                         x0=parameter_list,
                         method='L-BFGS-B',
                         jac=True,
@@ -201,7 +202,7 @@ times = dt*np.arange(0,num_steps)
 optimized_dynamics = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_state=target_state.T,
+        target_state=target_state(initial_state),
         process_tensors=[process_tensor],
         parameters=reshapedparas,
         time_steps=timesteps)

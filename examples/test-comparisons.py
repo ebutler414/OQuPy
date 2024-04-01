@@ -9,14 +9,14 @@ from oqupy import process_tensor
 # -- Test A: Spin boson model -------------------------------------------------
 
 # Target state
-target_state_I=np.array([[0,0.0],[0.0,1.0]])
+target_state_I=lambda rho_final: 2*rho_final.T
 
 # Initial state:
-initial_state_I = np.array([[1.0,0.0],[0.0,0.0]])
+initial_state_I = np.array([[1.0,0.0],[0.0,1.0]])
 
 # Markovian dissipation
-gamma_I_1 = lambda t: 0.1 # with sigma minus
-gamma_I_2 = lambda t: 0.2 # with sigma z
+gamma_I_1 = lambda t: 0.1*t # with sigma minus
+gamma_I_2 = lambda t: 0.2*t # with sigma z
 
 # Ohmic spectral density with exponential cutoff
 coupling_operator_I = np.array([[0.5,0.0],[0.0,-0.5]])
@@ -49,7 +49,7 @@ dt=0.05
 num_steps=int(t_end_I/dt)
     
 # Parameter at each time step
-x0 = np.ones(2*num_steps)
+x0 = dt/2*np.arange(2*num_steps)
 x0=list(zip(x0))
 
 # Parameterized system definition
@@ -76,20 +76,24 @@ grad,dyn = oqupy.compute_gradient_and_dynamics(system=system_I,
                                                 parameters=x0,
                                                 process_tensors=[pt],
                                                 initial_state=initial_state_I,
-                                                target_state=target_state_I.T
+                                                target_state=target_state_I
                                                 )
 grad_dict = oqupy.state_gradient(system=system_I,
                                                 parameters=x0,
                                                 process_tensors=[pt],
                                                 initial_state=initial_state_I,
-                                                target_state=target_state_I.T
+                                                target_state=target_state_I
                                                 )
 
 
 tensor_list = [i.tensor for i in grad]
 
-fidelity=np.sum(dyn.states[-1]*target_state_I.T)
+import matplotlib.pyplot as plt
+states = dyn.states
+purities=[]
 
+def purity(state):
+    return np.trace(state**2)
 from pprint import pprint
 
 pprint(tensor_list[0])

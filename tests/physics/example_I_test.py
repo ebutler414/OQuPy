@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Tests for the time_evovling_mpo.backends.tensor_network modules.
+Tests for the compute_gradient_and_dynamics and chain_rule functions in gradient.py
 """
 
 import pytest
@@ -78,7 +78,7 @@ system_I = oqupy.ParameterizedSystem(hamiltonian=discrete_h_sys_I,
 # Derivative of F(T) w.r.t. hx(0) obtained from release code
 grad_params_I= 0.00507649
     
-# Derivative of state w.r.t. propagators obtained from release code  (rank-4 [4,4,4,4]-dimensional tensor)
+# Derivative of state w.r.t. half-propagators U_1(0) and U_2(0) obtained from release code  (rank-4 [4,4,4,4]-dimensional tensor)
 grad_prop_I = np.array([[[[ 2.05687344e-01-2.39613533e-16j,
            1.92610345e-02-2.00209666e-01j,
            1.92610345e-02+2.00209666e-01j,
