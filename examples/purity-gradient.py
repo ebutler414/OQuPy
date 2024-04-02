@@ -43,12 +43,6 @@ x0 = np.zeros(2*total_steps)
 parameter_list = list(zip(x0,y0,z0))
 num_params = len(parameter_list[0])
 
-y0 = np.zeros(total_steps)
-z0 = np.ones(total_steps) * (np.pi) / (dt*total_steps)
-x0 = np.zeros(total_steps)
-
-test_parameter_list = list(zip(x0,y0,z0))
-
 # --- Choose timestep of Fidelity -----------
 
 num_steps = total_steps
@@ -178,6 +172,10 @@ for i in range(0, num_params*num_steps,num_params):
         bounds[i+1] = y_bound
         bounds[i+2] = z_bound
 
+y0 = np.zeros(total_steps)
+z0 = np.ones(total_steps) * (np.pi) / (dt*total_steps)
+x0 = np.zeros(total_steps)
+
 parameter_list=[item for pair in zip(x0, y0, z0) for item in pair]
 
 optimization_result = minimize(
@@ -230,6 +228,8 @@ bloch_length = np.sqrt(bloch_x**2 +bloch_y**2 + bloch_z**2)
 ax2.plot(t,bloch_length,label=r'$|\mathbf{\sigma}|$')
 ax2.set_ylabel(r"$\langle \sigma \rangle$",rotation=0,fontsize=16)
 ax2.set_xlabel("t")
+
+print(optimized_dynamics['final state'])
 
 plt.legend()
 

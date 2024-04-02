@@ -127,9 +127,6 @@ def _chain_rule(
             pre_node=tn.Node(pre_prop)
             post_node=tn.Node(post_prop)
 
-            for edge in target_deriv:
-                 print(edge.dimension)
-
             target_deriv[3] ^ post_node[1] 
             target_deriv[2] ^ post_node[0] 
             target_deriv[1] ^ pre_node[1] 

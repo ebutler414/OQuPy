@@ -34,19 +34,13 @@ pt_epsrel = 10**(-7) #1.0e-5
 initial_state = op.spin_dm('x-')
 target_derivative = op.spin_dm('x+')
 
-# -- initial parameter guess --
+# -- initial parameter guess, defined over half-timesteps --
 y0 = np.zeros(2*total_steps)
 z0 = np.ones(2*total_steps) * (np.pi) / (dt*total_steps)
 x0 = np.zeros(2*total_steps)
 
 parameter_list = list(zip(x0,y0,z0))
 num_params = len(parameter_list[0])
-
-y0 = np.zeros(total_steps)
-z0 = np.ones(total_steps) * (np.pi) / (dt*total_steps)
-x0 = np.zeros(total_steps)
-
-test_parameter_list = list(zip(x0,y0,z0))
 
 # --- Choose timestep of Fidelity -----------
 
@@ -67,7 +61,6 @@ else:
         parameter_list.append(parameter_list[i])
     num_steps=end_step
     timesteps=range(2*end_step)
-
 
 # --- Compute process tensors -------------------------------------------------
 
@@ -118,8 +111,8 @@ v_final_state = np.reshape(final_state,hs_dim**2)
 v_target_derivative = np.reshape(target_derivative.T,hs_dim**2)
 fidelity = v_target_derivative @ v_final_state
 
-print(f"the fidelity is {fidelity}")
-print(f"the fidelity gradient is {fidelity_dict['gradient']}")
+print(f"the fidelity is {fidelity.real}")
+print(f"the fidelity gradient is {fidelity_dict['gradient'].real}")
 t, s_x = fidelity_dict['dynamics'].expectations(op.sigma("x"))
 t, s_y = fidelity_dict['dynamics'].expectations(op.sigma("y"))
 t, s_z = fidelity_dict['dynamics'].expectations(op.sigma("z"))
@@ -177,6 +170,11 @@ for i in range(0, num_params*num_steps,num_params):
         bounds[i+1] = y_bound
         bounds[i+2] = z_bound
 
+y0 = np.zeros(total_steps)
+z0 = np.ones(total_steps) * (np.pi) / (dt*total_steps)
+x0 = np.zeros(total_steps)
+
+# Flatten list for input to optimizer
 parameter_list=[item for pair in zip(x0, y0, z0) for item in pair]
 
 optimization_result = minimize(
