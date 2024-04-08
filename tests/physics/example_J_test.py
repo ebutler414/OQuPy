@@ -25,7 +25,7 @@ from oqupy import process_tensor
 # -----------------------------------------------------------------------------
 # -- Test J: Spin-Boson model gradient (time-dependent system, functional target state) -------------------------------------------------
 
-# Target state : e.g. derivative of the purity
+# Target derivative : e.g. derivative of the purity
 target_derivative_J=lambda rho: 2*rho.T
 
 # Initial state (mixed):
