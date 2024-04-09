@@ -80,7 +80,7 @@ process_tensor = oqupy.pt_tempo_compute(
     start_time=0.0,
     end_time=num_steps * dt,
     parameters=pt_tempo_parameters,
-    progress_type='bar')
+    progress_type='silent')
 
 # --- Define parametrized system ----------------------------------------------
 

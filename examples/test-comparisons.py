@@ -5,18 +5,27 @@ import oqupy
 from oqupy import process_tensor
 
 
-# -----------------------------------------------------------------------------
-# -- Test A: Spin boson model -------------------------------------------------
 
 # Target state
-target_derivative_I=lambda rho_final: 2*rho_final.T
+target_derivative_I=np.array([[0,0.0],[0.0,1.0]])
 
 # Initial state:
-initial_state_I = np.array([[1.0,0.0],[0.0,1.0]])
+initial_state_I = np.array([[1.0,0.0],[0.0,0.0]])
+
+# End time
+t_end_I = 1.0
+
+# Time step and number of steps
+dt=0.05
+num_steps=int(t_end_I/dt)
+    
+# Parameter at each time step
+x0 = np.ones(2*num_steps)
+x0=list(zip(x0))
 
 # Markovian dissipation
-gamma_I_1 = lambda t: 0.1*t # with sigma minus
-gamma_I_2 = lambda t: 0.2*t # with sigma z
+gamma_I_1 = lambda t: 0.1 # with sigma minus
+gamma_I_2 = lambda t: 0.2 # with sigma z
 
 # Ohmic spectral density with exponential cutoff
 coupling_operator_I = np.array([[0.5,0.0],[0.0,-0.5]])
@@ -24,10 +33,7 @@ alpha_I = 0.3
 cutoff_I = 5.0
 temperature_I = 0.2
 
-# end time
-t_end_I = 1.0
-
-# result obtained with release code (made hermitian):
+# Result obtained with release code (made hermitian):
 rho_I = np.array([[ 0.7809559 +0.j        , -0.09456333+0.16671419j],
                   [-0.09456333-0.16671419j,  0.2190441 +0.j        ]])
 
@@ -40,17 +46,6 @@ correlations_I = oqupy.PowerLawSD(alpha=alpha_I,
 bath_I = oqupy.Bath(coupling_operator_I,
                     correlations_I,
                     name="phonon bath") 
-
-# Gradient obtained from release code (made Hermitian)
-grad_I = []
-
-# Time step and number of steps
-dt=0.05
-num_steps=int(t_end_I/dt)
-    
-# Parameter at each time step
-x0 = dt/2*np.arange(2*num_steps)
-x0=list(zip(x0))
 
 # Parameterized system definition
 def discrete_h_sys_I(hx):

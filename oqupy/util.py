@@ -43,7 +43,7 @@ def create_delta(
     ret_shape = tuple(tensor_shape[i] for i in index_scrambling)
     ret_ndarray = np.zeros(ret_shape, dtype=tensor.dtype)
 
-    # Reorder tensor indicies
+    # Reorder tensor indices
     for a in np.ndindex(*tensor_shape):
         tensor_indices = tuple(a)
         ret_indices = tuple(a[i] for i in index_scrambling)
