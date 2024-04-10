@@ -22,6 +22,8 @@ from oqupy.system import BaseSystem, System, TimeDependentSystem,\
         ParameterizedSystem, TimeDependentSystemWithField, MeanFieldSystem
 from oqupy import operators
 
+from typing import Tuple
+
 # -----------------------------------------------------------------------------
 # -- test-examples ------------------------------------------------------------
 
@@ -200,11 +202,14 @@ def test_time_dependent_system_bad_input():
 
 def test_parameterized_system():
     # good construction
-    def hamiltonian(x, y, z):
+    def hamiltonianParameterizedGood(x, y, z):
         h = np.zeros((2,2), dtype='complex128')
         for var, var_name in zip([x,y,z], ["x", "y", "z"]):
             h += var*operators.sigma(var_name)
         return h
+    
+    hamiltonianParameterizedBad = operators.sigma("x")
+    hamiltonianParameterizedBad2 = operators.sigma("x").flatten()
 
     dt = 0.01
     xv = [0.0, 0.1, 0.2, 0.3]
@@ -212,6 +217,7 @@ def test_parameterized_system():
     zv = [1.0, 0.9, 0.8, 0.7]
     params = list(zip(xv,yv,zv))
 
+<<<<<<< HEAD
     param_sys = ParameterizedSystem(hamiltonian)
     assert param_sys.number_of_parameters == 3
 
@@ -219,6 +225,30 @@ def test_parameterized_system():
     param_sys.liouvillian(0.0,0.1,1.0)
     param_sys.get_propagators(dt, (xv,yv,zv))
     param_sys.get_propagator_derivatives(dt, (xv,yv,zv))
+=======
+    param_sys = ParameterizedSystem(hamiltonianParameterizedGood)
+    assert param_sys.number_of_parameters == 3
+
+    assert isinstance(param_sys.liouvillian(0.0,0.1,1.0),np.ndarray)
+
+    props=param_sys.get_propagators(dt, (xv,yv,zv))
+    prop_derivs=param_sys.get_propagator_derivatives(dt, (xv,yv,zv))
+
+    with pytest.raises(TypeError):
+        ParameterizedSystem(hamiltonianParameterizedBad)
+    with pytest.raises(TypeError):
+        ParameterizedSystem(hamiltonianParameterizedBad2)
+    with pytest.raises(TypeError):
+        param_sys.liouvillian()
+    with pytest.raises(TypeError):
+        param_sys.liouvillian(0.1)
+    with pytest.raises(TypeError):
+        props[0]
+    with pytest.raises(TypeError):
+        prop_derivs[0]
+    
+
+>>>>>>> 8112177e6c132ced29acae2edf64ca0eb9109b53
 
 def test_time_dependent_system_with_field():
     # good construction

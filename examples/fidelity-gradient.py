@@ -20,19 +20,19 @@ from typing import List,Tuple
 # parameters used in https://arxiv.org/abs/2303.16002
 
 # -- time steps --
-dt = 0.05 # 0.2
-total_steps = 50# 20
+dt = 0.05 
+total_steps = 100
 
 # -- bath --
-alpha =  0.126 #0.08
-omega_cutoff = 3.04 #4
-temperature = 5 * 0.1309 #1.6
-pt_dkmax =60 # 40   60
-pt_epsrel = 10**(-7) #1.0e-5
+alpha =  0.126 
+omega_cutoff = 3.04 
+temperature = 5 * 0.1309 
+pt_dkmax =60 
+pt_epsrel = 10**(-7) 
 
 # -- initial and target state --
 initial_state = op.spin_dm('x-')
-target_derivative = op.spin_dm('x+')
+target_derivative = op.spin_dm('x+').T
 
 # -- initial parameter guess, defined over half-timesteps --
 y0 = np.zeros(2*total_steps)
@@ -80,7 +80,7 @@ process_tensor = oqupy.pt_tempo_compute(
     start_time=0.0,
     end_time=num_steps * dt,
     parameters=pt_tempo_parameters,
-    progress_type='bar')
+    progress_type='silent')
 
 # --- Define parametrized system ----------------------------------------------
 
@@ -101,7 +101,7 @@ from oqupy.gradient import state_gradient
 fidelity_dict = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_derivative=target_derivative.T,
+        target_derivative=target_derivative,
         process_tensors=[process_tensor],
         parameters=parameter_list,
         time_steps=timesteps)
@@ -117,13 +117,16 @@ t, s_x = fidelity_dict['dynamics'].expectations(op.sigma("x"))
 t, s_y = fidelity_dict['dynamics'].expectations(op.sigma("y"))
 t, s_z = fidelity_dict['dynamics'].expectations(op.sigma("z"))
 
+bloch_length = np.sqrt(s_x**2 +s_y**2 + s_z**2)
+
 plt.title("Pre-optimisation evolution of components")
 
 plt.plot(t,s_x,label='x')
 plt.plot(t,s_y,label='y')
 plt.plot(t,s_z,label='z')
+plt.plot(t,bloch_length,label=r'$|\mathbf{\sigma}|$')
 
-plt.ylabel(r"$h_i$",rotation=0,fontsize=16)
+plt.ylabel(r"$\langle \sigma \rangle$",rotation=0,fontsize=16)
 plt.xlabel("t")
 
 plt.legend()
@@ -141,7 +144,7 @@ def infidandgrad(paras):
 
     gradient_dict=oqupy.state_gradient(system=parametrized_system,
         initial_state=initial_state,
-        target_derivative=target_derivative.T,
+        target_derivative=target_derivative,
         process_tensors=[process_tensor],
         parameters=reshapedparas)
     
@@ -199,7 +202,7 @@ times = dt*np.arange(0,num_steps)
 optimized_dynamics = state_gradient(
         system=parametrized_system,
         initial_state=initial_state,
-        target_derivative=target_derivative.T,
+        target_derivative=target_derivative,
         process_tensors=[process_tensor],
         parameters=reshapedparas,
         time_steps=timesteps)

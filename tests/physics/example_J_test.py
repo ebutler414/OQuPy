@@ -25,7 +25,7 @@ from oqupy import process_tensor
 # -----------------------------------------------------------------------------
 # -- Test J: Spin-Boson model gradient (time-dependent system, functional target state) -------------------------------------------------
 
-# Target state : e.g. derivative of the purity
+# Target derivative : e.g. derivative of the purity
 target_derivative_J=lambda rho: 2*rho.T
 
 # Initial state (mixed):
@@ -75,8 +75,20 @@ system_J = oqupy.ParameterizedSystem(hamiltonian=discrete_h_sys_J,
                         lindblad_operators=[lambda t: oqupy.operators.sigma("-"),
                                             lambda t: oqupy.operators.sigma("z")])
 
+<<<<<<< HEAD
 # Derivative of F(T) w.r.t. hx(0) obtained from release code
 grad_params_J= 0.00042864
+=======
+# Derivative of F(T) w.r.t. hx(t) obtained from release code
+grad_params_J= [[ 0.00042864], [ 0.00090963], [ 0.00090963], [ 0.00135798], [ 0.00135798], 
+                [ 0.00174146], [ 0.00174146], [ 0.00205895], [ 0.00205895], [ 0.00232296], 
+                [ 0.00232296], [ 0.00254775], [ 0.00254775], [ 0.00274492], [ 0.00274492], 
+                [ 0.00292292], [ 0.00292292], [ 0.00308704], [ 0.00308704], [ 0.00324113], 
+                [ 0.00324113], [ 0.00338389], [ 0.00338389], [ 0.00351423], [ 0.00351423], 
+                [ 0.00362336], [ 0.00362336], [ 0.00369445], [ 0.00369445], [ 0.00369498], 
+                [ 0.00369498], [ 0.00356663], [ 0.00356663], [ 0.00321363], [ 0.00321363], 
+                [ 0.00250733], [ 0.00250733], [ 0.00135151], [ 0.00135151], [-0.00017009]]
+>>>>>>> 8112177e6c132ced29acae2edf64ca0eb9109b53
 
 def test_tempo_gradient_backend_J():
     tempo_params_J =oqupy.TempoParameters(
@@ -97,14 +109,22 @@ def test_tempo_gradient_backend_J():
                                                     )
 
     np.testing.assert_almost_equal(dyn.states[-1], rho_J, decimal=4)
+<<<<<<< HEAD
     
     get_props = system_J.get_propagators(dt,x0)
     get_prop_derivatives = system_J.get_propagator_derivatives(dt,x0)
 
     grad_params = oqupy.gradient._chain_rule(adjoint_tensor=[grad_prop[0]],
+=======
+
+    get_props = system_J.get_propagators(dt,x0)
+    get_prop_derivatives = system_J.get_propagator_derivatives(dt,x0)
+
+    grad_params = oqupy.gradient._chain_rule(adjoint_tensor=grad_prop,
+>>>>>>> 8112177e6c132ced29acae2edf64ca0eb9109b53
                                             dprop_dparam=get_prop_derivatives,
                                             propagators=get_props,
-                                            num_steps=1,
+                                            num_steps=num_steps,
                                             num_parameters=1)
     
-    np.testing.assert_almost_equal(grad_params[0].real,grad_params_J,decimal=4)
+    np.testing.assert_almost_equal(grad_params.real,grad_params_J,decimal=4)

@@ -33,43 +33,23 @@ def create_delta(
         tensor: ndarray,
         index_scrambling: List[int]) -> ndarray:
     """
-    Creates deltas in numpy tensor.
-
-    .. warning::
-        This is a computationally inefficient method to perform the task.
-
-    .. todo::
-        Make it better.
-
+    Creates deltas in numpy tensor
     """
-    tensor_shape = tensor.shape
-    a = [0]*len(tensor_shape)
 
-    ret_shape = tuple(list(tensor_shape)[i] for i in index_scrambling)
+    # Get the shape of the input tensor
+    tensor_shape = tensor.shape
+
+    # Create output array
+    ret_shape = tuple(tensor_shape[i] for i in index_scrambling)
     ret_ndarray = np.zeros(ret_shape, dtype=tensor.dtype)
 
-    # emulating a do-while loop
-    do_while_condition = True
-    while do_while_condition:
+    # Reorder tensor indices
+    for a in np.ndindex(*tensor_shape):
         tensor_indices = tuple(a)
         ret_indices = tuple(a[i] for i in index_scrambling)
         ret_ndarray[ret_indices] = tensor[tensor_indices]
-        do_while_condition = increase_list_of_index(a, tensor_shape)
 
     return ret_ndarray
-
-def increase_list_of_index(
-        a: List,
-        shape: List,
-        index: Optional[int] = -1) -> bool:
-    """Circle through a list of indices. """
-    a[index] += 1
-    if a[index] >= shape[index]:
-        if index == -len(shape):
-            return False
-        a[index] = 0
-        return increase_list_of_index(a, shape, index-1)
-    return True
 
 def add_singleton(
         tensor: ndarray,

@@ -186,7 +186,7 @@ def test_mean_field_and_with_control():
             control_list=[control],
         )
     
-def test_compute_gradient_and_dynamics(): # Will be moved to gradient_test upon restructuring of code
+def test_compute_gradient_and_dynamics():
     start_time=0
     num_steps=2
     dt=0.2
