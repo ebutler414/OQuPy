@@ -19,7 +19,7 @@ import pytest
 import numpy as np
 
 from oqupy.system import BaseSystem, System, TimeDependentSystem,\
-        ParametrizedSystem, TimeDependentSystemWithField, MeanFieldSystem
+        ParameterizedSystem, TimeDependentSystemWithField, MeanFieldSystem
 from oqupy import operators
 
 # -----------------------------------------------------------------------------
@@ -198,7 +198,7 @@ def test_time_dependent_system_bad_input():
                 operators.sigma("y"),
                 lambda t: t*operators.sigma("z")])
 
-def test_parametrized_system():
+def test_parameterized_system():
     # good construction
     def hamiltonian(x, y, z):
         h = np.zeros((2,2), dtype='complex128')
@@ -210,14 +210,15 @@ def test_parametrized_system():
     xv = [0.0, 0.1, 0.2, 0.3]
     yv = [0.0, 0.0, 0.0, 0.0]
     zv = [1.0, 0.9, 0.8, 0.7]
+    params = list(zip(xv,yv,zv))
 
-    param_sys = ParametrizedSystem(hamiltonian)
+    param_sys = ParameterizedSystem(hamiltonian)
     assert param_sys.number_of_parameters == 3
 
     # ToDo: more tests
-    # param_sys.liouvillian(0.0,0.1,1.0)
-    # param_sys.get_propagators(dt, (xv,yv,zv))
-    # param_sys.get_propagator_derivatives(dt, (xv,yv,zv))
+    param_sys.liouvillian(0.0,0.1,1.0)
+    param_sys.get_propagators(dt, (xv,yv,zv))
+    param_sys.get_propagator_derivatives(dt, (xv,yv,zv))
 
 def test_time_dependent_system_with_field():
     # good construction
