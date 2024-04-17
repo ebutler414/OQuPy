@@ -32,9 +32,6 @@ from oqupy.config import PROGRESS_TYPE
 def create_delta(
         tensor: ndarray,
         index_scrambling: List[int]) -> ndarray:
-    """
-    Creates deltas in numpy tensor
-    """
 
     # Get the shape of the input tensor
     tensor_shape = tensor.shape
@@ -49,6 +46,15 @@ def create_delta(
         ret_indices = tuple(a[i] for i in index_scrambling)
         ret_ndarray[ret_indices] = tensor[tensor_indices]
 
+    return ret_ndarray
+
+def create_delta_noscramble(
+        tensor: ndarray):
+    tensor_shape = tensor.shape
+    ret_shape=tensor.shape+(tensor.shape[-1],)
+    ret_ndarray=np.zeros(ret_shape,dtype=tensor.dtype)
+    for a in range(ret_shape[-1]):
+        ret_ndarray[:,:,a,a]=tensor[:,:,a]
     return ret_ndarray
 
 def add_singleton(
