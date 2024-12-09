@@ -116,7 +116,6 @@ class BaseCorrelations(BaseAPIClass):
             "{} has no correlation_2d_integral implementation.".format(
                 type(self).__name__))
 
-
 class CustomCorrelations(BaseCorrelations):
     r"""
     Encodes a custom auto-correlation function
@@ -662,6 +661,348 @@ class CustomSD(BaseCorrelations):
         if matsubara:
             integral = integral.real
         return integral
+
+
+# --- 2d integrals ------------------------------------------------------------
+# old way of computing them from timeevolvingmpo code
+# still in use for the phase markers version
+
+def _2d_square_integrand_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at zero
+    temperature without J(omega). """
+    return 1.0/omega**2 * 2 * np.cos(time_1*omega) * (1 - np.cos(delta*omega))
+
+def _2d_square_integrand_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at finite
+    temperature without J(omega). """
+    integrand = 1.0/omega**2 * 2 * np.cos(time_1*omega) \
+                * (1 - np.cos(delta*omega))
+    return integrand / np.tanh(omega/(2*temperature))
+
+def _2d_square_integrand_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of square 2D time integral without
+    J(omega). """
+    return -1.0/omega**2 * 2 * np.sin(time_1*omega) * (1 - np.cos(delta*omega))
+
+def _2d_upper_triangle_integrand_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of upper triangle 2D time integral at zero
+    temperature without J(omega). """
+    return 1.0/omega**2 * (np.cos(omega*time_1) \
+                           - np.cos(omega*(time_1+delta)) \
+                           - omega * delta * np.sin(omega*time_1))
+
+def _2d_upper_triangle_integrand_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of upper triangle 2D time integral at finite
+    temperature without J(omega). """
+    return 1.0/omega**2 * (np.cos(omega*time_1) \
+                           - np.cos(omega*(time_1+delta)) \
+                           - omega * delta * np.sin(omega*time_1)) \
+                        / np.tanh(omega/(2*temperature))
+
+def _2d_upper_triangle_integrand_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of upper triangle 2D time integral without
+    J(omega). """
+    return -1.0/omega**2 * (np.sin(omega*time_1) \
+                            - np.sin(omega*(time_1+delta)) \
+                            + omega * delta * np.cos(omega*time_1))
+
+def _2d_lower_triangle_integrand_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of lower triangle 2D time integral at zero
+    temperature without J(omega). """
+    return 1.0/omega**2 * (np.cos(omega*time_1) \
+                           - np.cos(omega*(time_1-delta)) \
+                           + omega * delta * np.sin(omega*time_1))
+
+def _2d_lower_triangle_integrand_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of lower triangle 2D time integral at finite
+    temperature without J(omega). """
+    return 1.0/omega**2 * (np.cos(omega*time_1) \
+                           - np.cos(omega*(time_1-delta)) \
+                           + omega * delta * np.sin(omega*time_1)) \
+                        / np.tanh(omega/(2*temperature))
+
+def _2d_lower_triangle_integrand_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of lower triangle 2D time integral without
+    J(omega). """
+    return -1.0/omega**2 * (np.sin(omega*time_1)
+                            - np.sin(omega*(time_1-delta))
+                            - omega * delta * np.cos(omega*time_1))
+
+def _2d_rectangle_integrand_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of rectangle 2D time integral at zero
+    temperature without J(omega). """
+    return 1.0/omega**2 * (np.cos((time_2 - delta) * omega)
+                           - np.cos((time_1 - delta) * omega)
+                           - np.cos(time_2 * omega)
+                           + np.cos(time_1 * omega))
+
+def _2d_rectangle_integrand_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of rectangle 2D time integral at finite
+    temperature without J(omega). """
+    integrand = 1.0/omega**2 * (np.cos((time_2 - delta) * omega)
+                                - np.cos((time_1 - delta) * omega)
+                                - np.cos(time_2 * omega)
+                                + np.cos(time_1 * omega))
+    return integrand / np.tanh(omega/(2*temperature))
+
+def _2d_rectangle_integrand_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of rectangle 2D time integral without
+    J(omega). """
+    return -1.0/omega**2 * (np.sin((time_2 - delta) * omega)
+                            - np.sin((time_1 - delta) * omega)
+                            - np.sin(time_2 * omega)
+                            + np.sin(time_1 * omega))
+
+# dictionary for the various integrands for the 2d time integral
+INTEGRAND_DICT = {
+    'square': (_2d_square_integrand_real,
+               _2d_square_integrand_real_t,
+               _2d_square_integrand_imag),
+    'upper-triangle': (_2d_upper_triangle_integrand_real,
+                       _2d_upper_triangle_integrand_real_t,
+                       _2d_upper_triangle_integrand_imag),
+    'lower-triangle': (_2d_lower_triangle_integrand_real,
+                       _2d_lower_triangle_integrand_real_t,
+                       _2d_lower_triangle_integrand_imag),
+    'rectangle': (_2d_rectangle_integrand_real,
+                  _2d_rectangle_integrand_real_t,
+                  _2d_rectangle_integrand_imag),
+    }
+
+class CountingCustomSD(CustomSD):
+    r"""
+    Correlations for a custom spectral density with a counting field.
+    Stores the value of the counting field u. Adds code for corelation_2d_integral_marked
+    which computes the components of the influence functional an older way.
+    """
+
+    def __init__(
+            self,
+            j_function: Callable[[float], float],
+            cutoff: float,
+            countingfield: u,
+            cutoff_type: Optional[Text] = 'exponential',
+            temperature: Optional[float] = 0.0,
+            name: Optional[Text] = None,
+            description: Optional[Text] = None) -> None:
+        """Create a CustomFunctionSD (spectral density) object. """
+    self._u=u
+    super().__init(j_function,cutoff,cutoff_type,temperature,name,description)
+
+    @functools.lru_cache(maxsize=2**10, typed=False)
+    def correlation_2d_integral_marked(
+            self,
+            delta: float,
+            time_1: float,
+            time_2: Optional[float] = None,
+            shape: Optional[Text] = 'square',
+            which_corr: Optional[Text] = 'A1',
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT) -> complex:
+        r"""
+        2D integrals of the correlation function
+
+        .. math::
+
+            \eta_\mathrm{square} =
+            \int_{t_1}^{t_1+\Delta} \int_{0}^{\Delta} C(t'-t'') dt'' dt'
+
+            \eta_\mathrm{upper-triangle} =
+            \int_{t_1}^{t_1+\Delta} \int_{0}^{t'-t_1} C(t'-t'') dt'' dt'
+
+            \eta_\mathrm{lower-triangle} =
+            \int_{t_1}^{t_1+\Delta} \int_{t'-t_1}^{\Delta} C(t'-t'') dt'' dt'
+
+            \eta_\mathrm{rectangle} =
+            \int_{t_1}^{t_2} \int_{0}^{\Delta} C(t'-t'') dt'' dt'
+
+        for `shape` either ``'square'``, ``'upper-triangle'``,
+        ``'lower-triangle'``, or ``'rectangle'``.
+
+        Parameters
+        ----------
+        delta : float
+            Length of integration intevals.
+        time_1 : float
+            Lower bound of integration interval of :math:`dt'`.
+        time_2 : float
+            Upper bound of integration interval of :math:`dt'` for `shape` =
+            ``'rectangle'``.
+        shape : str (default = ``'square'``)
+            The shape of the 2D integral. Shapes are: {``'square'``,
+            ``'upper-triangle'``, ``'lower-triangle'``, ``'lower-triangle'``}
+        epsrel : float
+            Relative error tollerance.
+        subdiv_limit: int
+            Maximal number of interval subdivisions for numerical integration.
+
+        Returns
+        -------
+        integral : float
+            The numerical value for the two dimensional integral
+            :math:`\eta_\mathrm{shape}`.
+        """
+        
+        if (which_corr=='A1'):   
+                # real and imaginary part of the integrand
+                if self.temperature == 0.0:
+                    re_integrand = lambda w: \
+                        (np.cos(self._u*w/2.0)**2)*self._spectral_density(w) \
+                        * INTEGRAND_DICT[shape][0](w,
+                                                   delta,
+                                                   time_1,
+                                                   time_2,
+                                                   self.temperature)
+                else:
+                    re_integrand = lambda w: \
+                        (np.cos(self._u*w/2.0)**2)*self._spectral_density(w) \
+                        * INTEGRAND_DICT[shape][1](w,
+                                                   delta,
+                                                   time_1,
+                                                   time_2,
+                                                   self.temperature)
+                im_integrand = lambda w: \
+                    (np.cos(self._u*w/2.0)**2)*self._spectral_density(w) \
+                    * INTEGRAND_DICT[shape][2](w,
+                                               delta,
+                                               time_1,
+                                               time_2,
+                                               self.temperature)
+                
+        elif (which_corr=='A2'):                
+                if self.temperature == 0.0:
+                    re_integrand = lambda w: \
+                        (np.sin(self._u*w/2)**2)*self._spectral_density(w) \
+                        * INTEGRAND_DICT[shape][0](w,
+                                                   delta,
+                                                   time_1,
+                                                   time_2,
+                                                   self.temperature)
+                else:
+                    re_integrand = lambda w: \
+                        (np.sin(self._u*w/2.0)**2)*self._spectral_density(w) \
+                        * INTEGRAND_DICT[shape][1](w,
+                                                   delta,
+                                                   time_1,
+                                                   time_2,
+                                                   self.temperature)
+                im_integrand = lambda w: \
+                    (np.sin(self._u*w/2.0)**2)*self._spectral_density(w) \
+                    * INTEGRAND_DICT[shape][2](w,
+                                               delta,
+                                               time_1,
+                                               time_2,
+                                               self.temperature)
+        elif (which_corr=='C'):        
+                if self.temperature == 0.0:
+                    re_integrand = lambda w: \
+                        (np.sin(self._u*w)/2.0)*self._spectral_density(w) \
+                        * INTEGRAND_DICT_C[shape][0](w,
+                                                   delta,
+                                                   time_1,
+                                                   time_2,
+                                                   self.temperature)
+                else:
+                    re_integrand = lambda w: \
+                         (np.sin(self._u*w)/2.0)*self._spectral_density(w) \
+                         * INTEGRAND_DICT_C[shape][1](w,
+                                                   delta,
+                                                   time_1,
+                                                   time_2,
+                                                   self.temperature)
+                im_integrand = lambda w: \
+                     -1.0*(np.sin(self._u*w)/2.0)*self._spectral_density(w) \
+                     * INTEGRAND_DICT_C[shape][2](w,
+                                               delta,
+                                               time_1,
+                                               time_2,
+                                               self.temperature)
+
+        # real and imaginary part of the integral
+        re_int = integrate.quad(re_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        im_int = integrate.quad(im_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        if self.cutoff_type != "hard":
+            re_int += integrate.quad(re_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+            im_int += integrate.quad(im_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+
+        return re_int+1j*im_int
+
 
 
 class PowerLawSD(CustomSD):
