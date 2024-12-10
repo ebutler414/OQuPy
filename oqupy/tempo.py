@@ -1435,3 +1435,74 @@ def _estimate_epsrel(
     """Heuristic estimation of appropriate epsrel for TEMPO."""
     power = np.log(dkmax)/np.log(4)-np.log(tolerance)/np.log(10)
     return np.power(10,-power)
+
+
+class TempoCounting(Tempo):
+    
+    def _influence(self, dk: int):
+        """Create the influence functional matrix for a time step distance
+        of dk. """
+        dt = self._parameters.dt
+        dkmax = self._parameters.dkmax
+
+        if dk == 0:
+            time_1 = 0.0
+            time_2 = None
+            shape = "upper-triangle"
+        elif dk < 0:
+            time_1 = float(dkmax) * dt
+            if self._correlations.max_correlation_time is not None:
+                time_2 = np.min([
+                    float(dkmax-dk) * dt,
+                    self._correlations.max_correlation_time])
+            else:
+                time_2 = float(dkmax-dk) * dt
+            shape = "rectangle"
+        else:
+            time_1 = float(dk) * dt
+            time_2 = None
+            shape = "square"
+
+         
+        etaA1_dk = self._correlations.correlation_2d_integral_marked( \
+            delta=dt,
+            time_1=time_1,
+            time_2=time_2,
+            shape=shape,
+            which_corr='A1',
+            epsrel=self._parameters.epsrel)
+        etaA2_dk = self._correlations.correlation_2d_integral_marked( \
+            delta=dt,
+            time_1=time_1,
+            time_2=time_2,
+            shape=shape,
+            which_corr='A2',
+            epsrel=self._parameters.epsrel)
+        etaC_dk = self._correlations.correlation_2d_integral_marked( \
+            delta=dt,
+            time_1=time_1,
+            time_2=time_2,
+            shape=shape,
+            which_corr='C',
+            epsrel=self._parameters.epsrel)  
+        op_p = self._bath.coupling_acomm
+        op_m = self._bath.coupling_comm
+
+        
+        if dk == 0:
+#            infl = np.diag(np.exp(-op_m*(etaA1_dk.real*op_m \
+#                                          + 1j*etaA1_dk.imag*op_p)))
+             infl = np.diag(np.exp((op_m*((etaC_dk.real-1j*etaA1_dk.imag)*op_p+(1j*etaC_dk.imag-etaA1_dk.real)*op_m)-op_p*((etaC_dk.real+1j*etaA2_dk.imag)*op_m+(etaA2_dk.real+1j*etaC_dk.imag)*op_p))))
+        else:
+             infl = np.exp(np.outer(etaC_dk.real*op_p-1j*etaA1_dk.imag*op_p+1j*etaC_dk.imag*op_m-etaA1_dk.real*op_m,op_m)-np.outer(etaA2_dk.real*op_p+1j*etaC_dk.imag*op_p+etaC_dk.real*op_m+1j*etaA2_dk.imag*op_m,op_p))
+            
+#            infl = np.exp(-np.outer(eta_dk.real*op_m \
+#                                  + 1j*eta_dk.imag*op_p, op_m))
+        
+#        if dk == 0:
+#            infl = np.diag(np.exp((op_m*((etaC_dk.real-1j*etaA1_dk.imag)*op_p+(1j*etaC_dk.imag-etaA1_dk.real)*op_m)-op_p*((etaC_dk.real+1j*etaA2_dk.imag)*op_m+(etaA2_dk.real+1j*etaC_dk.imag)*op_p))))
+#        else:
+#            infl = np.exp(np.outer(etaC_dk.real*op_p-1j*etaA1_dk.imag*op_p+1j*etaC_dk.imag*op_m-etaA1_dk.real*op_m,op_m)-outer(etaA2_dk.real*op_p+1j*etaC_dk.imag*op_p+etaC_dk.real*op_m+1j*etaA2_dk.imag*op_m,op_p))
+
+            
+        return infl
