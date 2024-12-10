@@ -829,6 +829,176 @@ INTEGRAND_DICT = {
                   _2d_rectangle_integrand_imag),
     }
 
+
+## new class to calculate the correlation functions for the case with heat markers/counting fields
+
+# --- 2d integrals for the C correlation function (the A1 and A2 use the same as before) --- 
+# note that the 2d integral for C and those for A1 are related as
+# Re part of integral for C is Im part of that for A1 times the temperature factor
+# Im part of integral for C is Re part of that for A1 without the temperature factor
+# This may be a slightly clunky way to do it but hope it is clear. This code was
+# constructed by editing the square_integrand case, then cut-and-paste and replace square with the relevant 
+# text for the other cases.
+
+def _2d_square_integrand_C_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at zero
+    temperature without J(omega). """
+    #return 1.0/omega**2 * 2 * np.cos(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_square_integrand_imag(omega,delta,time_1,time_2,temperature)
+
+def _2d_square_integrand_C_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at finite
+    temperature without J(omega). """
+    #integrand = 1.0/omega**2 * 2 * np.cos(time_1*omega) \
+    #            * (1 - np.cos(delta*omega))
+    integrand = _2d_square_integrand_imag(omega,delta,time_1,time_2,temperature)
+    return integrand / np.tanh(omega/(2*temperature))
+
+def _2d_square_integrand_C_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of square 2D time integral without
+    J(omega). """
+    #return -1.0/omega**2 * 2 * np.sin(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_square_integrand_real(omega,delta,time_1,time_2,temperature)
+
+# above code copied then search and replace square->upper_triangle
+def _2d_upper_triangle_integrand_C_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at zero
+    temperature without J(omega). """
+    #return 1.0/omega**2 * 2 * np.cos(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_upper_triangle_integrand_imag(omega,delta,time_1,time_2,temperature)
+
+def _2d_upper_triangle_integrand_C_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at finite
+    temperature without J(omega). """
+    #integrand = 1.0/omega**2 * 2 * np.cos(time_1*omega) \
+    #            * (1 - np.cos(delta*omega))
+    integrand = _2d_upper_triangle_integrand_imag(omega,delta,time_1,time_2,temperature)
+    return integrand / np.tanh(omega/(2*temperature))
+
+def _2d_upper_triangle_integrand_C_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of square 2D time integral without
+    J(omega). """
+    #return -1.0/omega**2 * 2 * np.sin(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_upper_triangle_integrand_real(omega,delta,time_1,time_2,temperature)
+
+# above code copied then search and replace square->lower_triangle
+def _2d_lower_triangle_integrand_C_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at zero
+    temperature without J(omega). """
+    #return 1.0/omega**2 * 2 * np.cos(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_lower_triangle_integrand_imag(omega,delta,time_1,time_2,temperature)
+
+def _2d_lower_triangle_integrand_C_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at finite
+    temperature without J(omega). """
+    #integrand = 1.0/omega**2 * 2 * np.cos(time_1*omega) \
+    #            * (1 - np.cos(delta*omega))
+    integrand = _2d_lower_triangle_integrand_imag(omega,delta,time_1,time_2,temperature)
+    return integrand / np.tanh(omega/(2*temperature))
+
+def _2d_lower_triangle_integrand_C_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of square 2D time integral without
+    J(omega). """
+    #return -1.0/omega**2 * 2 * np.sin(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_lower_triangle_integrand_real(omega,delta,time_1,time_2,temperature)
+
+# above code copied then search and replace square->rectangle
+
+def _2d_rectangle_integrand_C_real(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at zero
+    temperature without J(omega). """
+    #return 1.0/omega**2 * 2 * np.cos(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_rectangle_integrand_imag(omega,delta,time_1,time_2,temperature)
+
+def _2d_rectangle_integrand_C_real_t(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for real part of square 2D time integral at finite
+    temperature without J(omega). """
+    #integrand = 1.0/omega**2 * 2 * np.cos(time_1*omega) \
+    #            * (1 - np.cos(delta*omega))
+    integrand = _2d_rectangle_integrand_imag(omega,delta,time_1,time_2,temperature)
+    return integrand / np.tanh(omega/(2*temperature))
+
+def _2d_rectangle_integrand_C_imag(
+        omega: ArrayLike,
+        delta: float,
+        time_1: float,
+        time_2: Optional[float] = None,
+        temperature: Optional[float] = None) -> ArrayLike:
+    """Integrand for imaginary part of square 2D time integral without
+    J(omega). """
+    #return -1.0/omega**2 * 2 * np.sin(time_1*omega) * (1 - np.cos(delta*omega))
+    return _2d_rectangle_integrand_real(omega,delta,time_1,time_2,temperature)
+
+INTEGRAND_DICT_C = {
+    'square': (_2d_square_integrand_C_real,
+               _2d_square_integrand_C_real_t,
+               _2d_square_integrand_C_imag),
+    'upper-triangle': (_2d_upper_triangle_integrand_C_real,
+                       _2d_upper_triangle_integrand_C_real_t,
+                       _2d_upper_triangle_integrand_C_imag),
+    'lower-triangle': (_2d_lower_triangle_integrand_C_real,
+                       _2d_lower_triangle_integrand_C_real_t,
+                       _2d_lower_triangle_integrand_C_imag),
+    'rectangle': (_2d_rectangle_integrand_C_real,
+                  _2d_rectangle_integrand_C_real_t,
+                  _2d_rectangle_integrand_C_imag),
+    }
+
 class CountingCustomSD(CustomSD):
     r"""
     Correlations for a custom spectral density with a counting field.
@@ -840,16 +1010,17 @@ class CountingCustomSD(CustomSD):
             self,
             j_function: Callable[[float], float],
             cutoff: float,
-            countingfield: u,
+            countingfield,
             cutoff_type: Optional[Text] = 'exponential',
             temperature: Optional[float] = 0.0,
             name: Optional[Text] = None,
             description: Optional[Text] = None) -> None:
         """Create a CustomFunctionSD (spectral density) object. """
-    self._u=u
-    super().__init(j_function,cutoff,cutoff_type,temperature,name,description)
+        self._u=countingfield
+        super().__init__(j_function,cutoff,cutoff_type,temperature,name,description)
 
-    @functools.lru_cache(maxsize=2**10, typed=False)
+    #@functools.lru_cache(maxsize=2**10, typed=False)
+    
     def correlation_2d_integral_marked(
             self,
             delta: float,
