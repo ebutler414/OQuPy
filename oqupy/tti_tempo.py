@@ -57,6 +57,7 @@ from oqupy.operators import left_right_super
 from oqupy.util import get_progress
 
 from oqupy.iTEBD_TEMPO_useoqupybath import iTEBD_TEMPO_oqupy
+from oqupy.iTEBD_TEMPO_useheatmarkers import iTEBD_TEMPO_counting
 from oqupy.process_tensor import TTInvariantProcessTensor
 
 class TTITempo():
@@ -149,4 +150,92 @@ class TTITempo():
         return self._process_tensor
     
 
+class TTITempoCounting():
+    """
+    Class to facilitate a PT-TEMPO computation with time-translation invariant process tensor
 
+    Parameters
+    ----------
+    bath: Bath
+        The Bath (includes the coupling operator to the system).
+    parameters: TempoParameters
+        The parameters for the PT-TEMPO computation.
+    start_time: float
+        The start time.
+    unique: bool (default = False),
+        Whether to use degeneracy checking. If True reduces dimension of
+        bath tensors in case of degeneracies in sums ('west') and
+        sums,differences ('north') of the bath coupling operator.
+        See bath:north_degeneracy_map, bath:west_degeneracy_map.
+    backend_config: dict (default = None)
+        The configuration of the backend. If `backend_config` is
+        ``None`` then the default backend configuration is used.
+    name: str (default = None)
+        An optional name for the tempo object.
+    description: str (default = None)
+        An optional description of the tempo object.
+    """
+    def __init__(
+            self,
+            bath: Bath,
+            start_time: float,
+            parameters: TempoParameters,
+            rank: Optional[int] = np.inf,
+            name: Optional[Text] = None,
+            description: Optional[Text] = None) -> None:
+        """Create a PtTempo object. """
+        assert isinstance(bath, Bath), \
+            "Argument 'bath' must be an instance of Bath."
+        self._bath = bath
+        self._dimension = self._bath.dimension
+        self._correlations = self._bath.correlations
+
+        # super().__init__(name, description)
+
+        try:
+            tmp_start_time = float(start_time)
+        except Exception as e:
+            raise AssertionError("Start time must be a float.") from e
+        self._start_time = tmp_start_time
+
+        assert isinstance(parameters, TempoParameters), \
+            "Argument 'parameters' must be an instance of TempoParameters."
+        self._parameters = parameters
+
+        self._rank=rank # Passed to the iTEBD code as the maximum rank.
+        
+        self._name=name
+        self._description=description
+
+        self._init_tti_process_tensor()
+
+        self._coupling_comm = self._bath._coupling_comm
+        self._coupling_acomm = self._bath._coupling_acomm
+
+        self._backend_instance = None
+
+    def _init_tti_process_tensor(self):
+        """ToDo. """
+        unitary = self._bath.unitary_transform
+        if not np.allclose(unitary, np.identity(self._dimension)):
+            transform_in = left_right_super(unitary.conjugate().T,
+                                            unitary).T
+            transform_out = left_right_super(unitary,
+                                             unitary.conjugate().T).T
+        else:
+            transform_in = None
+            transform_out = None
+        
+        myitebd = iTEBD_TEMPO_counting(np.diagonal(self._bath.coupling_operator), self._parameters.dt, 
+                                                self._bath.correlations, self._parameters.dkmax)
+        myitebd.compute_f(self._parameters.epsrel,self._rank)
+        
+        self._process_tensor = TTInvariantProcessTensor(myitebd,
+            transform_in=transform_in,
+            transform_out=transform_out,
+            name=self._name,
+            description=self._description)
+        
+    def get_process_tensor(self):
+        return self._process_tensor
+    

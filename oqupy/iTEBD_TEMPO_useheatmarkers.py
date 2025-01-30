@@ -68,12 +68,12 @@ def iTEBD_apply_gate(gate: np.ndarray, A: np.ndarray, sAB: np.ndarray, B: np.nda
 class BathCorrelation():
     """ A class to store the bath correlation function. """
 
-    def __init__(self, oqupybc: BaseCorrelations):
+    def __init__(self, markedbc: BaseCorrelations):
         """
         :param bcf: The bath correlation function.
         """
 
-        self.oqupybc=oqupybc
+        self.markedbc=markedbc
 
     def compute_eta(self, n: int, delta: float) -> np.ndarray:
         """
@@ -83,20 +83,27 @@ class BathCorrelation():
         :return: Discretized bath correlation function.
         """
 
-        eta = np.zeros(n, dtype=np.complex128)
-        eta[0] = self.oqupybc.correlation_2d_integral(delta,0.0,shape='upper-triangle')
+        etaA1 = np.zeros(n, dtype=np.complex128)
+        etaA2 = np.zeros(n, dtype=np.complex128)
+        etaC = np.zeros(n, dtype=np.complex128)
+
+        etaA1[0] = self.markedbc.correlation_2d_integral_marked(delta=delta,time_1=0.,shape='upper-triangle',which_corr='A1') # is there a reason to do this seperately?
+        etaA2[0] = self.markedbc.correlation_2d_integral_marked(delta=delta,time_1=0.,shape='upper-triangle',which_corr='A2')
+        etaC[0] = self.markedbc.correlation_2d_integral_marked(delta=delta,time_1=0.,shape='upper-triangle',which_corr='C')
         #eta[0] += dblquad(lambda s, t: np.real(self.bcf(t - s)), 0, delta, lambda t: 0, lambda t: t)[0]
         #eta[0] += dblquad(lambda s, t: np.imag(self.bcf(t - s)), 0, delta, lambda t: 0, lambda t: t)[0] * 1j
 
         for k in range(1, n):
-            eta[k] = self.oqupybc.correlation_2d_integral(delta,k*delta)
+            etaA1[k] = self.markedbc.correlation_2d_integral_marked(delta=delta,time_1=k*delta,which_corr='A1')
+            etaA2[k] = self.markedbc.correlation_2d_integral_marked(delta=delta,time_1=k*delta,which_corr='A2')
+            etaC[k] = self.markedbc.correlation_2d_integral_marked(delta=delta,time_1=k*delta,which_corr='C')
             #eta[k] += dblquad(lambda s, t: np.real(self.bcf(t - s)), k * delta, (k + 1) * delta, 0, delta)[0]
             #eta[k] += dblquad(lambda s, t: np.imag(self.bcf(t - s)), k * delta, (k + 1) * delta, 0, delta)[0] * 1j
 
-        return eta
+        return etaA1,etaA2,etaC
 
 
-class iTEBD_TEMPO_oqupy():
+class iTEBD_TEMPO_counting():
     """ A class to compute and approximate the influence functional unsing iTEBD-TEMPO and compute dynamics. """
 
     def __init__(self, s_vals: np.ndarray, delta: float, bath_correlations: BaseCorrelations, n_c: int):
@@ -115,7 +122,7 @@ class iTEBD_TEMPO_oqupy():
         # total number of pairs of eigenvalues + 1 (e.g. for n=2, 4 possible pairs of eigenvalues)
         self.bcf = BathCorrelation(bath_correlations)
         self.delta = delta
-        self.eta = self.bcf.compute_eta(self.n_c, delta)
+        self.etaA1,self.etaA2,self.etaC = self.bcf.compute_eta(self.n_c, delta)
         self.s_diff = np.empty((self.nu_dim - 1), dtype=np.complex128)
         self.s_sum = np.empty((self.nu_dim - 1), dtype=np.complex128)
         for nu in range(self.nu_dim - 1):
@@ -124,6 +131,7 @@ class iTEBD_TEMPO_oqupy():
             self.s_sum[nu] = self.s_vals[i] + self.s_vals[j]
         self.s_diff = np.pad(self.s_diff, [(0, 1)]) # just adds extra zero to end of array
         self.s_sum = np.pad(self.s_sum, [(0, 1)])
+
         self.kron_delta = np.identity(self.nu_dim)
         self.f = None
         return
@@ -143,7 +151,12 @@ class iTEBD_TEMPO_oqupy():
         rank_is_one = True
 
         for k in tqdm(range(1, self.n_c + 1), desc='building influence functional'):
-            i_tens = np.exp(-self.eta[self.n_c - k].real * np.outer(self.s_diff, self.s_diff) - 1j * self.eta[self.n_c - k].imag * np.outer(self.s_sum, self.s_diff))
+            #i_tens = np.exp(-self.eta[self.n_c - k].real * np.outer(self.s_diff, self.s_diff) - 1j * self.eta[self.n_c - k].imag * np.outer(self.s_sum, self.s_diff))
+            
+            i_tens =np.exp(np.outer(self.etaC[self.n_c-k].real*self.s_sum-1j*self.etaA1[self.n_c-k].imag*self.s_sum
+                                     +1j*self.etaC[self.n_c-k].imag*self.s_diff-self.etaA1[self.n_c-k].real*self.s_diff,self.s_diff)
+                                     -np.outer(self.etaA2[self.n_c-k].real*self.s_sum+1j*self.etaC[self.n_c-k].imag*self.s_sum
+                                               +self.etaC[self.n_c-k].real*self.s_diff+1j*self.etaA2[self.n_c-k].imag*self.s_diff,self.s_sum))
 
             if k == self.n_c:
                 gate = np.einsum('a,ij,jb,j->jabi', np.ones((1)), self.kron_delta, self.kron_delta, np.diagonal(i_tens))
