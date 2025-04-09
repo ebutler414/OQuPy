@@ -77,7 +77,7 @@ def state_gradient(
     check_isinstance(parameters, ndarray, 'parameters')
 
     dt = process_tensors[0].dt
-    num_parameters = parameters.shape[1]
+    num_parameters = parameters.shape[1] 
 
     grad_prop, dynamics = compute_gradient_and_dynamics(
         system=system,

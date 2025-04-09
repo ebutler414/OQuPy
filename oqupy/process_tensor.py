@@ -453,7 +453,8 @@ class TTInvariantProcessTensor(BaseProcessTensor):
             transform_in: Optional[ndarray] = None,
             transform_out: Optional[ndarray] = None,
             name: Optional[Text] = None,
-            description: Optional[Text] = None) -> None:
+            description: Optional[Text] = None,
+            length:Optional[int]=0) -> None:
         """Constructor of SimpleProcessTensor. """
         self._initial_tensor = None
         hilbert_space_dimension=tebd.s_dim
@@ -467,7 +468,7 @@ class TTInvariantProcessTensor(BaseProcessTensor):
         self._first_mpo_tensor.shape=tuple([1]+list(self._first_mpo_tensor.shape))
         self._mpo_tensor = create_delta_lastindex(self._mpo_tensor) 
         self._first_mpo_tensor = create_delta_lastindex(self._first_mpo_tensor)
-
+        self.length=length
         tensor=self._first_mpo_tensor
         if transform_in is not None:
             tensor = np.dot(np.moveaxis(tensor, -2, -1),transform_in.T)
@@ -497,7 +498,8 @@ class TTInvariantProcessTensor(BaseProcessTensor):
     def __len__(self) -> int:
         """Length of process tensor. """
         """This is not relevant for the TTI case but required by the abstract class"""
-        raise NotImplementedError
+        if self.length==0: raise NotImplementedError
+        else: return self.length
         #return len(self._mpo_tensors)
 
     @property

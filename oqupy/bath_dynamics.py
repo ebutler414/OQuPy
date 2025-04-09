@@ -143,7 +143,64 @@ class TwoTimeBathCorrelations(BaseAPIClass):
             self._system_correlations = np.append(self._system_correlations,
                                                   _new_sys_correlations,
                                                   axis = 1)
+    def occupationTTI(
+            self,
+            freq: float,
+            n_steps:int,
+            dw: Optional[float] = 1.0,
+            change_only: Optional[bool] = False,
+            progress_type: Optional[Text] = None) -> Tuple[ndarray, ndarray]:
+        r"""
+        Function to calculate the change in bath occupation in a particular
+        bandwidth. Overloaded to include n_steps. 
 
+        Parameters
+        ----------
+        freq: float
+            Central frequency of the frequency band.
+        dw: float
+            Width of the the frequency band. By default this method returns a
+            a *density* by setting the frequency band `dw=1.0`.
+        change_only: bool
+            Option to include the initial occupation (density) in the result.
+        progress_type: str (default = None)
+            The progress report type during the computation. Types are:
+            {``silent``, ``simple``, ``bar``}. If `None` then
+            the default progress type is used.
+
+        Returns
+        -------
+        times: ndarray
+            Times of the occupation dynamics.
+        bath_occupation: ndarray
+            Occupation (density) (difference) of the bath in the specified
+            frequency band.
+        """
+        corr_mat_dim = n_steps
+        dt = self._process_tensor.dt
+        last_time = corr_mat_dim * dt
+        tlist = np.arange(0, last_time+dt, dt)
+        if freq == 0:
+            return tlist, np.ones(len(tlist),
+                                  dtype=NpDtype) * (np.nan + 1.0j*np.nan)
+        self.generate_system_correlations(last_time, progress_type)
+        _sys_correlations = self._system_correlations[:corr_mat_dim,
+                                                      :corr_mat_dim]
+        _sys_correlations = np.nan_to_num(_sys_correlations)
+        last_time = n_steps * self._process_tensor.dt
+        re_kernel, im_kernel = self._calc_kernel(freq, last_time,
+                                                freq, last_time, (1, 0))
+        coup = self._bath.correlations.spectral_density(freq) * dw
+        bath_occupation = np.cumsum(
+            np.sum(_sys_correlations.real*re_kernel \
+                          + 1j*_sys_correlations.imag*im_kernel, axis = 0)
+                ).real * coup
+        bath_occupation = np.append([0], bath_occupation)
+        if not change_only and self._temp > 0:
+            bath_occupation += np.exp(-freq/self._temp) \
+                / (1 - np.exp(-freq/self._temp))
+        return tlist, bath_occupation
+    
     def occupation(
             self,
             freq: float,
