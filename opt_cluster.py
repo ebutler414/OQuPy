@@ -148,7 +148,7 @@ for t_prot in [t_arg]:
     print("The Jacobian was found to be : ",optimization_result.jac)
 
 # processtensor_simplemodel
-file_name1='optimization_simplemodel'
+file_name1='optimization_simplemodel_{0}ps'.format(t_arg)
 with open(file_name1,'wb') as f:
     dill.dump(optimization_result,f)
 
