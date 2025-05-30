@@ -12,11 +12,23 @@ from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize,Bounds
 
+import argparse
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--param', type=int, help='Parameter ID')
+args = parser.parse_args()
+
+t_arg = args.param
+# Use param_id to select initial guess, config file, etc.
+print(f'Running optimization with protocol time: {args.param} ps')
+
 pt_parameters = {'epsrel':10**(-7),
                  'alpha':0.1,
                  'omega_cutoff':1,                 
                  'temp':0.131,
                  'dt':0.25}
+
 
 omega_cutoff = pt_parameters['omega_cutoff']
 alpha = pt_parameters['alpha']
@@ -46,9 +58,6 @@ correlationscf=oqupy.bath_correlations.CustomCountingSD(j_function=j,cutoff=omeg
                                                  cutoff_type='exponential',temperature=temperature)
 
 bathcf = oqupy.Bath(op.sigma("z")/2.0, correlationscf)
-
-# converged parameters for different protocol times 
-protocol_times=[10,50,70,100,200]
 
 with open('processtensor_simplemodel', 'rb') as f:
     # The protocol version used is detected automatically, so we do not
@@ -113,19 +122,13 @@ def heatandgrad(paras,process_tensor,num_steps):
 
 import time
 
-opt_dict={protocol_times[0]:[],
-                 protocol_times[1]:[], 
-                 protocol_times[2]:[],
-                 protocol_times[3]:[],
-                 protocol_times[4]:[]}
-
 min_heats=[]
 opt_runtimes=[
 ]
 
-for t_prot in [50]:
+for t_prot in [t_arg]:
     num_steps=int(t_prot/processtensor.dt)
-    hx=np.zeros(num_steps)
+    hx=-np.ones(num_steps)
     parameter_list=[item for pair in zip(hx) for item in pair]
     start = time.time()
     
@@ -140,10 +143,6 @@ for t_prot in [50]:
     end = time.time()
     opt_runtimes.append(end-start)
 
-    opt_dict[t_prot]=optimization_result
-
-    min_heats.append(optimization_result.fun)
-
     print("The minimal heat was found to be : ",optimization_result.fun)
 
     print("The Jacobian was found to be : ",optimization_result.jac)
@@ -152,3 +151,4 @@ for t_prot in [50]:
 file_name1='optimization_simplemodel'
 with open(file_name1,'wb') as f:
     dill.dump(optimization_result,f)
+
