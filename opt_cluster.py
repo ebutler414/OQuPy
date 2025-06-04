@@ -59,14 +59,14 @@ correlationscf=oqupy.bath_correlations.CustomCountingSD(j_function=j,cutoff=omeg
 
 bathcf = oqupy.Bath(op.sigma("z")/2.0, correlationscf)
 
-with open('processtensor_simplemodel', 'rb') as f:
-    # The protocol version used is detected automatically, so we do not
-    # have to specify it.
+# load pre-computed process tensors
+
+with open('OQuPy/processtensor_simplemodel', 'rb') as f:
+
     processtensor = dill.load(f)
 
-with open('processtensorCF_simplemodel', 'rb') as f:
-    # The protocol version used is detected automatically, so we do not
-    # have to specify it.
+with open('OQuPy/processtensorCF_simplemodel', 'rb') as f:
+
     processtensorcf = dill.load(f)
 
 def discrete_hamiltonian(hx):
