@@ -7,7 +7,7 @@ from oqupy.tti_tempo import TTITempo
 from oqupy.tti_tempo import TTITempoCounting
 import matplotlib.pyplot as plt
 import dill
-
+import os
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize,Bounds
@@ -27,7 +27,8 @@ pt_parameters = {'epsrel':10**(-7),
                  'alpha':0.1,
                  'omega_cutoff':1,                 
                  'temp':0.131,
-                 'dt':0.25}
+                 'dt':0.25,
+                 'tcut':27}
 
 
 omega_cutoff = pt_parameters['omega_cutoff']
@@ -37,7 +38,7 @@ epsrel = pt_parameters['epsrel']
 # dt = 1./omega_cutoff/np.sqrt(3)
 dt=pt_parameters['dt']
 
-tcut=27
+tcut=pt_parameters['tcut']
 
 Rho_0=oqupy.operators.spin_dm('x+')
 
@@ -78,6 +79,7 @@ target_derivative = -1j*np.identity(2)/u
 
 # Cost Function
 num_params=1
+opt_log=[]
 
 def heatandgrad(paras,process_tensor,num_steps):
     """""
@@ -102,8 +104,17 @@ def heatandgrad(paras,process_tensor,num_steps):
     
     fs=gradient_dict['final_state']
     gps=gradient_dict['gradient']
+    fs_times=gradient_dict['dynamics']
 
     heat=np.trace(fs).imag/u
+
+    heat_times=fs_times.states.trace(axis1=1,axis2=2).imag/u
+
+    opt_log.append({
+        "x":reshapedparas.copy(),
+        "final heat": heat.copy(),
+        "full heats":heat_times.copy()
+    })
 
     # Adding adjacent elements
     for i in range(0,gps.shape[0],2): 
@@ -147,8 +158,30 @@ for t_prot in [t_arg]:
 
     print("The Jacobian was found to be : ",optimization_result.jac)
 
-# processtensor_simplemodel
-file_name1='optimization_simplemodel_{0}ps'.format(t_arg)
+opt_parameters = reshapedparas = [i for i in (optimization_result.x.reshape((-1,num_params))).tolist() for j in range(2)]
+opt_parameters=np.array(opt_parameters)
+
+grad_res_opt = oqupy.state_gradient(
+    system=system,
+    initial_state=Rho_0,
+    target_derivative=op.spin_dm('mixed').T,
+    process_tensors=[processtensor],
+    num_steps=num_steps,
+    parameters=opt_parameters,
+    progress_type='silent')
+
+folder="OQuPy/results/constant_control/{0}ps".format(t_arg)
+os.makedirs(folder,exist_ok=True)
+
+optimization_dict={"result":optimization_result,
+                   "log":opt_log,
+                   "fidelitygrad":grad_res_opt,
+                   "opttime":opt_runtimes,
+                   "parameters":pt_parameters
+                   }
+# optimization result
+file_name1=os.path.join(folder,'optimization_simplemodel_{0}ps'.format(t_arg))
 with open(file_name1,'wb') as f:
-    dill.dump(optimization_result,f)
+    dill.dump(optimization_dict,f)
+
 
