@@ -358,7 +358,21 @@ def compute_gradient_and_dynamics(
     target_ndarray = target_derivative
     target_ndarray = target_ndarray.reshape(hs_dim**2)
     # target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
-    target_ndarray = np.outer(caps,target_ndarray)
+    # target_ndarray = np.outer(caps,target_ndarray)
+
+    reshaped = []
+    for i, v in enumerate(caps):
+        shape = [1] * len(process_tensors)     # all ones
+        shape[i] = -1                  # set the dimension we want to fill
+        reshaped.append(v.reshape(shape))
+
+    # Compute outer product over all N vectors : (x1, x2, ..., xN)
+    outer = reshaped[0]
+    for v in reshaped[1:]:
+        outer = outer * v  # 
+    target_ndarray = outer[..., None] * target_ndarray
+
+    # Step 3: Multiply with the target : (x1, ..., xN, d)
     current_node = tn.Node(target_ndarray)
     current_edges = current_node[:]
 

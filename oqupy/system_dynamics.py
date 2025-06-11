@@ -689,6 +689,7 @@ def _apply_pt_mpos(current_node, current_edges, pt_mpos):
     for i, pt_mpo in enumerate(pt_mpos):
         if pt_mpo is None:
             continue
+        print(pt_mpo.shape)
         pt_mpo_node = tn.Node(pt_mpo)
         new_bond_edge = pt_mpo_node[1]
         new_sys_edge = pt_mpo_node[3]
