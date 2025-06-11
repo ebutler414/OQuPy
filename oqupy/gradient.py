@@ -360,22 +360,24 @@ def compute_gradient_and_dynamics(
     # target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
     # target_ndarray = np.outer(caps,target_ndarray)
 
-    reshaped = []
-    for i, v in enumerate(caps):
-        shape = [1] * len(process_tensors)     # all ones
-        shape[i] = -1                  # set the dimension we want to fill
-        reshaped.append(v.reshape(shape))
+    if len(process_tensors)>1: #allows for multiple environments
+        reshaped = []
+        for i, v in enumerate(caps):
+            shape = [1] * len(process_tensors)     # all ones
+            shape[i] = -1                  # dimension to fill
+            reshaped.append(v.reshape(shape))
 
-    # Compute outer product over all N vectors : (x1, x2, ..., xN)
-    outer = reshaped[0]
-    for v in reshaped[1:]:
-        outer = outer * v  # 
-    target_ndarray = outer[..., None] * target_ndarray
+        # outer product over all N vectors : (x1, x2, ..., xN)
+        outer = reshaped[0]
+        for v in reshaped[1:]:
+            outer = outer * v  # 
+        target_ndarray = outer[..., None] * target_ndarray
 
-    # Step 3: Multiply with the target : (x1, ..., xN, d)
-    current_node = tn.Node(target_ndarray)
-    current_edges = current_node[:]
-
+        # multiply with the target : (x1, ..., xN, d)
+        current_node = tn.Node(target_ndarray)
+        current_edges = current_node[:]
+    else:
+        target_ndarray = np.outer(caps,target_ndarray)
     combined_deriv_list = []
 
     pre_measurement_control, post_measurement_control=controls(num_steps)
