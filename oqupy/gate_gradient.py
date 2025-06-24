@@ -22,36 +22,35 @@ def compute_dynamical_map(system: ParameterizedSystem,
         progress_type: Optional[Text] = None)-> List:
     
     propagators=system.get_propagators(dt,parameters)
-    mpo_list=[]
+ 
     x=0
     for step in range(num_steps):
         mpos = _get_pt_mpos(process_tensors, step)
-        mpo_list.append(mpos)
+  
 
         mpo_node=tn.Node(mpos[0])
         mpo_edges=mpo_node[:]
 
-        # treat first mpo seperately (rank 3)
-        # get propagators for the current step
         first_half_prop, second_half_prop = propagators(step)
 
-        #apply propagators to the mpo
-        mpo_node,mpo_edges=_apply_propagators(mpo_node,mpo_edges,first_half_prop,second_half_prop,x)
-
+        mpo_node,mpo_edges=_apply_propagators(mpo_node,mpo_edges,first_half_prop,second_half_prop)
         print(step)
         if step==0:
             current_node,current_edges=mpo_node,mpo_edges
-            x=1
+            x=2
             continue
-        print(current_node.tensor.shape)
-        current_node,current_edges=_apply_pt_mpos(current_node,current_edges,[mpo_node.tensor])
+        print(current_node.shape)
+        current_node,current_edges=_apply_pt_mpos_gate(current_node,current_edges,mpo_node,mpo_edges,x)
+    
+    final_node=tn.Node(np.squeeze(current_node.tensor))
+    current_edges=final_node[:]
     
     caps = _get_caps(process_tensors, num_steps)
-    dynamical_map = _apply_caps(current_node, current_edges, caps)
+    dynamical_map = _apply_caps(final_node, current_edges, caps)
 
     return dynamical_map
 
-def _apply_propagators(mpo_node,mpo_edges,first_half_prop,second_half_prop,x):
+def _apply_propagators(mpo_node,mpo_edges,first_half_prop,second_half_prop):
     first_prop=tn.Node(first_half_prop.T)
     second_prop=tn.Node(second_half_prop.T)
 
@@ -61,6 +60,18 @@ def _apply_propagators(mpo_node,mpo_edges,first_half_prop,second_half_prop,x):
 
     new_mpo= first_prop@mpo_node@second_prop
 
-    new_mpo.reorder_edges([new_mpo[2-x],new_mpo[1+x],new_mpo[0],new_mpo[3]])
+    new_mpo.reorder_edges([new_mpo[1],new_mpo[2],new_mpo[3],new_mpo[0]])
+
     mpo_edges=new_mpo[:]
     return new_mpo, mpo_edges
+
+def _apply_pt_mpos_gate(current_node,current_edges,mpo_node,mpo_edges,x):
+    current_edges[1]^mpo_edges[0]
+    current_edges[3]^mpo_edges[2]
+
+    new_node=current_node@mpo_node
+
+    new_node.reorder_edges([new_node[0+x],new_node[2-x],new_node[1],new_node[3]])
+    new_edges=new_node[:]
+
+    return new_node, new_edges
