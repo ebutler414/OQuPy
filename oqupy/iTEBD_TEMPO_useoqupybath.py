@@ -178,7 +178,7 @@ class iTEBD_TEMPO_oqupy():
         self.v_r = v_r[:, 0]
         self.v_l = v_l[:, 0] / (v_l[:, 0] @ v_r[:, 0])
 
-        print('rank ', self.f.shape[0])
+        print('rank ', self.f.shape[0], self.f[:,:-1,:].shape)
         return
 
     def get(self, i_path: np.ndarray) -> complex:

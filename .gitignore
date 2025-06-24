@@ -146,3 +146,6 @@ dmypy.json
 
 # pdf output from example scripts
 examples/*.pdf
+results/
+processtensor_fine_simplemodel_0.2ps_8
+processtensorCF_fine_simplemodel_0.2ps_8
