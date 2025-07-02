@@ -43,15 +43,15 @@ def iTEBD_apply_gate(gate: np.ndarray, A: np.ndarray, sAB: np.ndarray, B: np.nda
     if rtol is None:
         rank_new = min(rank, len(s_vals))
     else:
-        s_vals_sum = np.cumsum(s_vals) / np.sum(s_vals)
-        rank_rtol = np.searchsorted(s_vals_sum, 1 - rtol) + 1
-        rank_new = min(rank, len(s_vals), rank_rtol)
-    u = u[:, :rank_new].reshape(sBA.shape[0], d1 * rank_new)
+        s_vals_sum = np.cumsum(s_vals) / np.sum(s_vals) # normalize cumulative sum of singular values
+        rank_rtol = np.searchsorted(s_vals_sum, 1 - rtol) + 1 # finds index where cumulative sum exceeds 1 - rtol
+        rank_new = min(rank, len(s_vals), rank_rtol) 
+    u = u[:, :rank_new].reshape(sBA.shape[0], d1 * rank_new)  
     v = v[:rank_new, :].reshape(rank_new * d2, rank_BA)
 
     # factor out sAB weights from A and B
     A = (np.diag(1 / sBA) @ u).reshape(sBA.shape[0], d1, rank_new)
-    B = (v @ np.diag(1 / sBA)).reshape(rank_new, d2, rank_BA)
+    B = (v @ np.diag(1 / sBA)).reshape(rank_new, d2, rank_BA) 
 
     # new weights
     sAB = s_vals[:rank_new]

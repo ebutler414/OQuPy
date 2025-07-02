@@ -257,3 +257,22 @@ class iTEBD_TEMPO_oqupy():
         rho_ss = (self.v_r @ v.reshape([self.v_r.size, self.s_dim**2])).reshape([self.s_dim, self.s_dim])
 
         return rho_ss / np.trace(rho_ss)
+
+    def short_time_propagator(self,h_s: np.array) -> np.ndarray:
+        """
+        Compute the short time propagator for the system Hamiltonian.
+
+        :param h_s: System Hamiltonian in the eigenbasis of the coupling operator.
+        :return: Short time propagator.
+        """
+
+        assert self.f is not None, "the influence functional has not yet been computed, run self.compute_f first"
+
+        liu_s = np.kron(expm(-1j * h_s * self.delta / 2), expm(1j * h_s * self.delta / 2).T)
+        u = np.einsum('ab,bc->abc', liu_s.T, liu_s.T)
+
+        evol_tens=ncon([self.f[:, :-1, :], u], [[-1, 1, -3], [-2, 1, -4]])
+
+        return evol_tens
+    
+
