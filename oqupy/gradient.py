@@ -169,7 +169,6 @@ def _chain_rule(
 def compute_gradient_and_dynamics(
         system: ParameterizedSystem,
         initial_state: ndarray,
-        target_derivative: Union[Callable,ndarray],
         process_tensors: List[BaseProcessTensor],
         parameters: ndarray,
         start_time: Optional[float] = 0.0,
