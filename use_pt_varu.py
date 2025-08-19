@@ -15,7 +15,7 @@ from scipy.optimize import minimize,Bounds
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--param', type=float, nargs=4, help='dt (float), epsrel power (int) and tcut (int)')
+parser.add_argument('--param', type=float, nargs=5, help='dt (float), epsrel power (int) and tcut (int)')
 args = parser.parse_args()
 
 #t_arg = int(args.param[0])  # protocol time (int)
@@ -23,23 +23,24 @@ dt = args.param[0]  # dt
 epsrel_pow = args.param[1] # epsrel (int)
 epsrel = 10**(-epsrel_pow)  # convert to float
 tcut=int(args.param[2])  # tcut (int)
-tprot=int(args.param[3]) # protocol time
+u=args.param[3] # counting field
+tprot=int(args.param[4]) # protocol time
 
+#folder="OQuPy/results/processtensors"
 folder="results/processtensors"
-#folder="results/processtensors"
 os.makedirs(folder,exist_ok=True)
 
 # fetch process tensors
-file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}'.format(dt,np.round(np.log10(epsrel),1),tcut))
+file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}_u={3}'.format(dt,np.round(np.log10(epsrel),1),tcut,u))
 with open(file_name1,'rb') as f:
     pt=dill.load(f)
 
-file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}'.format(dt,np.round(np.log10(epsrel),1),tcut))
+file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}_u={3}'.format(dt,np.round(np.log10(epsrel),1),tcut,u))
 with open(file_name1,'rb') as f:
     ptcf=dill.load(f)
 
 
-print(f'Running with dt : {dt} ps, epsrel power: -{epsrel_pow}, tcut: {tcut} ps')
+print(f'Running with dt : {dt} ps, epsrel power: -{epsrel_pow}, tcut: {tcut} ps, u: {u}')
 
 pt_parameters = {'epsrel':epsrel,
                  'alpha':0.1,
@@ -104,7 +105,7 @@ for t_prot in protocol_times:
         start_time=0,
         num_steps=num_steps_fine)
     
-    folder="results/optimised_longer/dt={0}ps_eps={1}_tcut={2}/".format(dt,np.round(np.log10(epsrel),1),tcut)
+    folder="results/optimised_longer/dt={0}ps_eps={1}_tcut={2}_u={3}/".format(dt,np.round(np.log10(epsrel),1),tcut,u)
 
     os.makedirs(folder,exist_ok=True)
 
@@ -116,3 +117,49 @@ for t_prot in protocol_times:
     file_name1=os.path.join(folder,'{0}ps'.format(t_prot))
     with open(file_name1,'wb') as f:
         dill.dump(long_dict,f)
+
+
+'''
+    opt_control=opt_dict[t_prot]['result'].x
+    num_steps=len(opt_control)
+    delta_t = interp1d(
+    np.linspace(0, t_prot, len(opt_control)),
+    opt_control )
+
+    def hamiltonian_t(t):
+        return delta_t(t)*oqupy.operators.sigma("x")/2
+    
+    system = oqupy.TimeDependentSystem(hamiltonian_t)
+    
+    dynamics=oqupy.compute_dynamics(
+    process_tensor=pt,        
+    system=system,
+    initial_state=Rho_0,
+    start_time=0,
+    num_steps=num_steps)
+    t, s_x = dynamics.expectations(op.sigma('x'), real=True)
+
+    # compute heats
+
+    dynamicscf = oqupy.compute_dynamics(
+    process_tensor=ptcf,        
+    system=system,
+    initial_state=Rho_0,
+    start_time=0,
+    num_steps=num_steps)
+
+
+    folder="OQuPy/results/optimised_longer/dt={0}ps_eps={1}_tcut={2}/".format(dt,np.round(np.log10(epsrel),1),tcut)
+
+    os.makedirs(folder,exist_ok=True)
+
+    long_dict={"dynamics":dynamics,
+            "dynamicscf":dynamicscf,
+            "parameters":pt_parameters}
+
+    # optimization result
+    file_name1=os.path.join(folder,'{0}ps'.format(t_prot))
+    with open(file_name1,'wb') as f:
+        dill.dump(long_dict,f)
+
+'''

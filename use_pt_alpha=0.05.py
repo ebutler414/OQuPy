@@ -25,16 +25,17 @@ epsrel = 10**(-epsrel_pow)  # convert to float
 tcut=int(args.param[2])  # tcut (int)
 tprot=int(args.param[3]) # protocol time
 
-folder="results/processtensors"
+folder="results/processtensors_lowercoupling"
 #folder="results/processtensors"
 os.makedirs(folder,exist_ok=True)
 
 # fetch process tensors
-file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}'.format(dt,np.round(np.log10(epsrel),1),tcut))
+
+file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut))
 with open(file_name1,'rb') as f:
     pt=dill.load(f)
 
-file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}'.format(dt,np.round(np.log10(epsrel),1),tcut))
+file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut))
 with open(file_name1,'rb') as f:
     ptcf=dill.load(f)
 
@@ -57,14 +58,7 @@ opt_dict={}
 
 protocol_times=[tprot]
 for t_prot in protocol_times:
-    if dt==0.2: 
-        file_name1='results/zero_control_0.2ps_8/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
-    elif dt==0.25:
-        file_name1='results/zero_control/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
-    elif dt==0.15:
-        file_name1='results/zero_control_dt=0.15/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
-    else:
-        file_name1='results/zero_control_0.2ps_8/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
+    file_name1='results/zero_control/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
     with open(file_name1,'rb') as f:
         opt_dict[t_prot]=dill.load(f)
 
@@ -73,8 +67,6 @@ for t_prot in protocol_times:
 Rho_0=oqupy.operators.spin_dm('x+')
 
 num_params=1
-
-
 
 for t_prot in protocol_times:
     opt_control = opt_dict[t_prot]['result'].x
@@ -104,7 +96,7 @@ for t_prot in protocol_times:
         start_time=0,
         num_steps=num_steps_fine)
     
-    folder="results/optimised_longer/dt={0}ps_eps={1}_tcut={2}/".format(dt,np.round(np.log10(epsrel),1),tcut)
+    folder="results/opt_convergence_lowercoupling/dt={0}ps_eps={1}_tcut={2}/".format(dt,np.round(np.log10(epsrel),1),tcut)
 
     os.makedirs(folder,exist_ok=True)
 

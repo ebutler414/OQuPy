@@ -15,7 +15,7 @@ from scipy.optimize import minimize,Bounds
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--param', type=float, nargs=3, help='Protocol time (int), dt (float), epsrel power (int) and tcut (int)')
+parser.add_argument('--param', type=float, nargs=4, help='Protocol time (int), dt (float), epsrel power (int) and tcut (int)')
 args = parser.parse_args()
 
 #t_arg = int(args.param[0])  # protocol time (int)
@@ -23,6 +23,7 @@ dt = args.param[0]  # dt
 epsrel_pow = args.param[1] # epsrel (int)
 epsrel = 10**(-epsrel_pow)  # convert to float
 tcut=int(args.param[2])  # tcut (int)
+u=args.param[3]
 
 
 print(f'Running with dt : {dt} ps, epsrel power: -{epsrel_pow}, tcut: {tcut} ps')
@@ -58,7 +59,6 @@ correlations = oqupy.PowerLawSD(alpha=alpha,
 bath = oqupy.Bath(op.sigma("z")/2.0, correlations)
 parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel,dkmax=int(tcut/dt)+1)
 
-u=0.01
 correlationscf=oqupy.bath_correlations.CustomCountingSD(j_function=j,cutoff=omega_cutoff,u=u,
                                                  cutoff_type='exponential',temperature=temperature)
 
@@ -76,11 +76,11 @@ folder="results/processtensors_lowercoupling"
 os.makedirs(folder,exist_ok=True)
 
 # optimization result
-file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut))
+file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}_u={3}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut,u))
 with open(file_name1,'wb') as f:
     dill.dump(processtensor,f)
 
-file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut))
+file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}_u={3}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut,u))
 with open(file_name1,'wb') as f:
     dill.dump(processtensorcf,f)
 

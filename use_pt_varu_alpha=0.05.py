@@ -15,31 +15,32 @@ from scipy.optimize import minimize,Bounds
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--param', type=float, nargs=4, help='dt (float), epsrel power (int) and tcut (int)')
+parser.add_argument('--param', type=float, nargs=5, help='dt (float), epsrel power (int) and tcut (int)')
 args = parser.parse_args()
 
-#t_arg = int(args.param[0])  # protocol time (int)
 dt = args.param[0]  # dt
 epsrel_pow = args.param[1] # epsrel (int)
 epsrel = 10**(-epsrel_pow)  # convert to float
 tcut=int(args.param[2])  # tcut (int)
-tprot=int(args.param[3]) # protocol time
+u=args.param[3] # u
+tprot=int(args.param[4]) # protocol time
 
-folder="results/processtensors"
+folder="results/processtensors_lowercoupling"
 #folder="results/processtensors"
 os.makedirs(folder,exist_ok=True)
 
 # fetch process tensors
-file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}'.format(dt,np.round(np.log10(epsrel),1),tcut))
+
+file_name1=os.path.join(folder,'processtensor_dt={0}_ps={1}_tcut={2}_u={3}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut,u))
 with open(file_name1,'rb') as f:
     pt=dill.load(f)
 
-file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}'.format(dt,np.round(np.log10(epsrel),1),tcut))
+file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}_u={3}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut,u))
 with open(file_name1,'rb') as f:
     ptcf=dill.load(f)
 
 
-print(f'Running with dt : {dt} ps, epsrel power: -{epsrel_pow}, tcut: {tcut} ps')
+print(f'Running with dt : {dt} ps, epsrel power: -{epsrel_pow}, tcut: {tcut} ps, u: {u}')
 
 pt_parameters = {'epsrel':epsrel,
                  'alpha':0.1,
@@ -57,14 +58,7 @@ opt_dict={}
 
 protocol_times=[tprot]
 for t_prot in protocol_times:
-    if dt==0.2: 
-        file_name1='results/zero_control_0.2ps_8/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
-    elif dt==0.25:
-        file_name1='results/zero_control/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
-    elif dt==0.15:
-        file_name1='results/zero_control_dt=0.15/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
-    else:
-        file_name1='results/zero_control_0.2ps_8/{0}ps/optimization_simplemodel_{0}ps'.format(t_prot)
+    file_name1='results/zero_control_lowercoupling/500ps/optimization_simplemodel_{0}ps'.format(t_prot)
     with open(file_name1,'rb') as f:
         opt_dict[t_prot]=dill.load(f)
 
@@ -104,7 +98,7 @@ for t_prot in protocol_times:
         start_time=0,
         num_steps=num_steps_fine)
     
-    folder="results/optimised_longer/dt={0}ps_eps={1}_tcut={2}/".format(dt,np.round(np.log10(epsrel),1),tcut)
+    folder="results/opt_convergence_lowercoupling/dt={0}ps_eps={1}_tcut={2}_u={3}/".format(dt,np.round(np.log10(epsrel),1),tcut,u)
 
     os.makedirs(folder,exist_ok=True)
 

@@ -86,69 +86,37 @@ target_derivative = -1j*np.identity(2)/u
 num_params=1
 opt_log=[]
 
-def heatandgrad(paras,process_tensor,num_steps):
+def heat(paras,process_tensor,num_steps):
     """""
     Take a numpy array [hx0, hz0, hx1, hz1, ...] over full timesteps and
     return the fidelity and gradient of the fidelity to the global target_derivative
     """
+    control_times = np.linspace(0, t_prot, num_steps, endpoint=False)
 
-    # Reshape flat parameter list to form accepted by state_gradient: [[hx0,hz0],[hx1,hz1,]...]
-    reshapedparas = [i for i in (paras.reshape((-1,num_params))).tolist() for j in range(2)]
-    #parameter_list=np.array([itemopt_steps=[9] for pair in zip(paras[:num_steps],paras[num_steps:2*num_steps]) for item in pair])
-    #reshapedparas = [i for i in (parameter_list.reshape((-1,num_params))).tolist() for j in range(2)]
-    reshapedparas = np.array(reshapedparas)
+    delta_t = interp1d(control_times, paras, kind='previous', fill_value="extrapolate")
 
-    gradient_dict = oqupy.state_gradient(
+    def hamiltonian_t(t):
+        return delta_t(t)*oqupy.operators.sigma("x")/2
+
+    system = oqupy.TimeDependentSystem(hamiltonian_t)
+
+    num_steps_fine = int(np.round(t_prot / dt))
+
+    dynamicscf = oqupy.compute_dynamics(
+        process_tensor=process_tensor,
         system=system,
         initial_state=Rho_0,
-        target_derivative=target_derivative,
-        process_tensors=[process_tensor],
-        parameters=reshapedparas,
-        num_steps=num_steps,
+        start_time=0,
+        num_steps=num_steps_fine,
         progress_type='silent')
     
-    fs=gradient_dict['final_state']
-    gps=gradient_dict['gradient']
-    fs_times=gradient_dict['dynamics']
-
-    heat=np.trace(fs).imag/u
-
-    heat_times=fs_times.states.trace(axis1=1,axis2=2).imag/u
-
-    opt_log.append({
-        "x":reshapedparas.copy(),
-        "final heat": heat.copy(),
-        "full heats":heat_times.copy()
-    })
-
-    # Adding adjacent elements
-    for i in range(0,gps.shape[0],2): 
-        gps[i,:]=gps[i,:]+gps[i+1,:]
-        
-    gps=gps[0::2]
-
-    x=[]
-    for i in range(0,gps.shape[1]): 
-        x.append(gps[:,i])
-    
-    gps=np.array(x)
-
-    # Return the minus the gradient as infidelity is being minimized 
-    return heat,(1.0*gps.reshape((-1)).real).tolist()
-
-
+    return dynamicscf.states.trace(axis1=1,axis2=2).imag/u
 
 import time
 
 min_heats=[]
 opt_runtimes=[
 ]
-
-'''
-file_name1='results/zero_control/{0}ps/optimization_simplemodel_{0}ps'.format(tprot)
-with open(file_name1,'rb') as f:
-        control_dict=dill.load(f)
-'''
 
 for t_prot in [tprot]:
     num_steps=int(t_prot/processtensor.dt)
@@ -158,7 +126,7 @@ for t_prot in [tprot]:
     start = time.time()
     
     optimization_result = minimize(
-                            fun=heatandgrad,
+                            fun=heat,
                             x0=parameter_list,
                             args=(processtensorcf,num_steps),
                             method='l-bfgs-b',
