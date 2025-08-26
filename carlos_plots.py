@@ -22,6 +22,8 @@ from matplotlib.transforms import ScaledTranslation
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize,Bounds
+from endpointcorrections import trapezoidal_fft_integral
+
 
 # ----------------- Parameters --------------
 
@@ -73,39 +75,13 @@ pt_file.close()
 
 h_x_opt = np.expand_dims(dict_run['optimization_result'].x,1)
 
-
-# In[2]:
-
-
-# Run the optimized dynamics
-def discrete_hamiltonian(hx):
-        return hx*op.sigma('x')
-system = oqupy.ParameterizedSystem(discrete_hamiltonian)
-
-initial_state = op.spin_dm('mixed')
-target_state = op.spin_dm('x-')
-target_derivative = target_state.T
-
-grad_res_opt = oqupy.state_gradient(
-    system=system,
-    initial_state=initial_state,
-    target_derivative=target_derivative,
-    process_tensors=[process_tensor_tebd],
-    num_steps=num_steps,
-    parameters=h_x_opt,
-    only_dynamics=True)
-
-dynamics_opt = grad_res_opt['dynamics']
-t, s_x_opt = dynamics_opt.expectations(op.sigma('x'), real=True)
-
-
-# In[120]:
+#%%
 
 
 pt=process_tensor_tebd
 hx=h_x_opt[0]
 system=oqupy.System(hx*op.sigma('x'))
-pt.set_length(2000)
+pt.set_length(2200) 
 spin_down = oqupy.operators.spin_dm("down")
 s_z = 0.5*oqupy.operators.sigma("z")
 s_x = 0.5*oqupy.operators.sigma("x")
@@ -117,8 +93,13 @@ delta = 0.1 * omega_cutoff
 initial_state = op.spin_dm('mixed')
 dynamics=oqupy.compute_dynamics(system=system,initial_state=initial_state,process_tensor=pt,num_steps=2000)
 times,sx=dynamics.expectations(s_x)
-plt.clf()
+
+#%%
+
+plt.figure()
 plt.plot(times,sx.real)
+plt.xlabel('Time')
+plt.ylabel('sigma_x')
 
 # In[4]:
 
@@ -140,123 +121,50 @@ else:
 #plt.show()
 
 
-# In[5]:
-
-#tlist, occ = bath_corr.occupation(w, delta, change_only = True)
-#plt.plot(tlist[1:],occ)
-
-
-# In[ ]:
-
-
-# let's generate a density plot
-#allocs=[]
-#ws=np.linspace(1,omega_cutoff*2,50)
-#for w in ws:
-#    tlist, occ = bath_corr.occupation(w, delta, change_only = True)
-#    allocs.append(list(occ))
-
-
-# In[ ]:
-
-
-#xs,ys=np.meshgrid(tlist[1:],ws)
-#zs=allocs
-#plt.pcolormesh(xs,ys,zs)
-#plt.show()
-
-
-# In[ ]:
-
-
-#from matplotlib import cm
-#fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-#ax.plot_surface(xs, ys, np.array(zs), cmap=cm.Blues)
-
-
-# In[6]:
-
-
-
-fig, (ax1,ax2) = plt.subplots(1,2)
-ax1.imshow(np.array(bath_corr._system_correlations).real)
-ax1.set_ylabel('row')
-ax1.set_xlabel('column')
-#fig.colorbar()
-ax2.imshow(np.array(bath_corr._system_correlations).imag)
-ax2.set_xlabel('t')
-#ax2.set_ylabel('tprime')
-#ax2.colorbar()
-fig.show()
-
-
-# In[8]:
 
 
 cfarr=np.array(bath_corr._system_correlations)
 cfarr[np.isnan(cfarr)] = 0
-cfarr[10,:]
 plt.clf()
-plt.plot(cfarr[:,999].real)
-plt.plot(cfarr[:,999].imag)
+tsforplot=108
+tforplot=tsforplot*dt
+tprimes=dt*np.arange(0,tsforplot+1)
+plt.plot(tprimes,cfarr[:(tsforplot+1),tsforplot].real)
+plt.plot(tprimes,cfarr[:(tsforplot+1),tsforplot].imag)
 plt.show()
 
+#%%
+def plotdispl(time):
+    tsforplot=int(time//dt)
+    tindx=tsforplot
+    n=10000
+    pstep=10
+    tdat=cfarr[:,tindx]
+    allomega,ftcfarr=trapezoidal_fft_integral(tdat, 0.0, dt, n)
+    
+    omega=allomega[0:n//2]
+    disps=ftcfarr[0:n//2]
+    
+    # multiply by the spectral density.
+    
+    disps=disps*corr.spectral_density(omega)
+    
+    disps=-2.0j*np.exp(-1.0j*tindx*dt)*disps
+    
+    # compare with displacements in the polaron state
+    wq=2*hx
+    plt.plot(omega,corr.spectral_density(omega)/(2*(wq+omega)),label='Polaron Ansatz')
+    plt.plot(omega[::pstep],np.abs(disps)[::pstep],label='OQuPy')
+    plt.xlim(right=150)
+    plt.xlabel(r'$\omega$ (ns$^{-1}$)')
+    plt.ylabel(r'$|f(\omega)|^2$ (ns)')
+    plt.text(0.8,0.5,r'$\alpha$=0.03',transform=plt.gca().transAxes)
+    t=tindx*dt
+    plt.text(0.8,0.4,rf't={t:.1f}',transform=plt.gca().transAxes)
+    plt.legend()
 
-# In[110]:
-
-
-# do the fft along the t' axis
-pad=3000
-n=cfarr.shape[0]+pad
-freq=np.fft.fftfreq(n,dt)
-ftcfarr=dt*np.fft.ifft(cfarr,n=n,axis=0,norm="forward")
-
-# we only need the positive frequency part
-
-omega=freq[0:n//2]*2*np.pi
-disps=ftcfarr[0:n//2,:]
-
-# multiply the columns (each of which is a particular time)
-# by the spectral density
-
-disps=disps*corr.spectral_density(omega)[:,np.newaxis]
-
-# construct the matrix exp(-i omega t)
-# since we have a_nm, first index is frequency, second is time
-
-xs,ys=np.meshgrid(dt*np.arange(disps.shape[1]),omega)
-
-# multiply this in
-
-disps=-1.0j*np.exp(-1.0j*xs*ys)*disps
-
-
-
-
-
-# In[139]:
-
-
-# compare with displacements in the polaron state
-wq=2*hx
-plt.clf()
-plt.plot(omega,corr.spectral_density(omega)/(2*(wq+omega)),label='Polaron Ansatz')
-plt.plot(omega,2*np.abs(disps[:,1999]),label='OQuPy')
-plt.xlim(right=150)
-plt.xlabel('')
-plt.legend()
-
-
-# In[ ]:
-# let's do one time value to check
-# following exactly the notation in NR and the endpoint corrections
-data=cfarr[:,1999]
-delta=dt
-bigm=data.shape[0]-1 # maximum index of the data, number of invervals
-dft=np.fft.ifft(data,norm="forward")
-freqs=np.fft.fftfreq(bigm+1,dt)
-plt.plot(freqs*2*np.pi,dft.real)
-plt.xlim(left=0)
-plt.ylim(-0.1,0.1)
-
-
+plotdispl(1.0)
+plt.figure()
+plotdispl(10.0)
+plt.figure()
+plotdispl(20.0)
