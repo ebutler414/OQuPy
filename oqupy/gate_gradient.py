@@ -22,262 +22,274 @@ def compute_dynamical_map(system: ParameterizedSystem,
         progress_type: Optional[Text] = None)-> List:
     
     propagators=system.get_propagators(dt,parameters)
+    map_list=[]
+    hs_dim=2
 
-    first_mpos= _get_pt_mpos(process_tensors, 0)
+    # (TODO: multiple process tensor compatibility)
+    for step in range(0,num_steps):
 
-    new_mpo=np.squeeze(first_mpos,0) # reshape MPO to work with algorithm
-    new_mpo=np.squeeze(new_mpo,0) # reshape MPO to work with algorithm
-
-    print(new_mpo.shape)
-
-    current_node=tn.Node(new_mpo)
-    current_edges=current_node[:]
-    for step in range(1,num_steps+1):
-
-        if step == num_steps:
-            break
-
-        #forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
-
-        # -- propagate one time step --
-        first_half_prop, second_half_prop = propagators(step)
-
+        # -- creates short time propagator for each step --
         pt_mpos = _get_pt_mpos(process_tensors, step)
 
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, first_half_prop)
-        current_node, current_edges = _apply_pt_mpos(
-            current_node, current_edges, pt_mpos)
+        current_node = tn.Node(pt_mpos[0])
 
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, second_half_prop)
+        current_edges=current_node[:]
 
-    # -- extract last state --
-    caps = _get_caps(process_tensors, num_steps)
-    dynamical_map = _apply_caps(current_node, current_edges, caps)
+        first_propagator,second_propagator=propagators(step)
 
-    return dynamical_map
+        current_node,current_edges=apply_mpo_propagators(current_node,current_edges,first_propagator,second_propagator)
 
+        if step==0:
+            prev_node,prev_edges=current_node,current_edges
+            caps = _get_caps(process_tensors, 1)
+            map_tensor = _apply_caps(current_node, current_edges[1:], caps)
+            map_list.append(map_tensor[0])
+            continue
+        
+        new_node,new_edges=stitch_mpos(prev_node,prev_edges,current_node,current_edges)
+        new_edges=new_node[:]
 
-'''
-    # target_ndarray.shape = tuple([1]*num_envs+[hs_dim**2])
-    # target_ndarray = np.outer(caps,target_ndarray)
+        caps = _get_caps(process_tensors, step)
+        map_tensor = _apply_caps(new_node, new_edges[1:], caps)
+        map_list.append(map_tensor)
 
-    if len(process_tensors)>1: #allows for multiple environments
-        reshaped = []
-        for i, v in enumerate(caps):
-            shape = [1] * len(process_tensors)     # all ones
-            shape[i] = -1                  # dimension to fill
-            reshaped.append(v.reshape(shape))
+        prev_node,prev_edges=new_node,new_edges
 
-        # outer product over all N vectors : (x1, x2, ..., xN)
-        outer = reshaped[0]
-        for v in reshaped[1:]:
-            outer = outer * v  # 
-        target_ndarray = outer[..., None] * target_ndarray
+    return map_list
 
-        # multiply with the target : (x1, ..., xN, d)
-        current_node = tn.Node(target_ndarray)
-        current_edges = current_node[:]
-    else:
-        target_ndarray = np.outer(caps,target_ndarray)
-    combined_deriv_list = []
-'''
-
-def compute_gradient_and_map(
-        system: ParameterizedSystem,
+def compute_dynamical_map_and_grad(system: ParameterizedSystem,
         process_tensors: List[BaseProcessTensor],
         parameters: ndarray,
+        dt:float,
         start_time: Optional[float] = 0.0,
-        dt: Optional[float] = None,
-        num_steps: Optional[int] = None,
-        control: Optional[Control] = None,
-        record_all: Optional[bool] = True,
-        progress_type: Optional[Text] = None) -> Tuple[List, Dynamics]:
-    """
-    Compute some objective function and calculate its gradient w.r.t.
-    some control parameters, accounting for interaction with an environment
-    using one or more process tensors.
-
-    Parameters:
-    -----------
-    system: ParametrizedSystem
-        Parameterized system taking M parameters.
-    initial_state: ndarray
-        The initial density matrix to propagate forwards
-    target_derivative: Union[Callable, ndarray]
-        A pure target state transposed or derivative w.r.t. an objective
-        function.
-    process_tensors: List[BaseProcessTensor]
-        A list of process tensors (each with N time steps) representing the
-        environment.
-    parameters: List[Tuple]
-        A list of M-tuples with length 2N. Each tuple corresponds to the values
-        of the parameters at a given half time step.
-    start_time: float
-        Optional start time offset.
-    dt: float
-        Length of a single time step.
-    num_steps: int
-        Optional number of time steps to be computed.
-    control: Control
-        Optional control operations.
-    record_all: bool
-        If `false` function only computes the final state.
-    progress_type: str (default = None)
-        The progress report type during the computation. Types are:
-        {``silent``, ``simple``, ``bar``}. If `None` then
-        the default progress type is used.
-
-    Returns:
-    --------
-    propagator_derivatives: List[ndarray]
-        List of 4-rank tensors. The nth entry corresponds to the derivative of
-        the objective function with respect to a propagator at the nth
-        time step. The axis are ordered as follows:
-            * [0] : output leg of 2nd half-propagator from step (n-1)
-            * [1] : input system leg of MPO from step n
-            * [2] : output system leg of MPO from step n
-            * [3] : input lef of 1st half-propagator from step (n+1)
-    dynamics: Dynamics
-        The system dynamics for the given system Hamiltonian
-        (accounting for the interaction with the environment).
-    """
-
-    num_envs = len(process_tensors)
-
-    if num_steps is None:
-        num_steps=len(process_tensors[0])
-
-    # -- prepare propagators --
-    propagators = system.get_propagators(dt, parameters)
-
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # ~~~~ Forwardpropagation ~~~~
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    # -- initialize computation --
-    #
-    #  Initial state including the bond legs to the environments with:
-    #    edges 0, 1, .., num_envs-1    are the bond legs of the environments
-    #    edge  -1                      is the state leg
-
-    first_mpos= _get_pt_mpos(process_tensors, 0)
-
-    new_mpo=np.squeeze(first_mpos,0) # reshape MPO to work with algorithm
-    new_mpo=np.squeeze(new_mpo,0) # reshape MPO to work with algorithm
-
-    print(new_mpo.shape)
-
-    current_node=tn.Node(new_mpo)
-    current_edges=current_node[:]
-
+        num_steps: Optional[int]=None,
+        progress_type: Optional[Text] = None)-> List:
     
+    propagators=system.get_propagators(dt,parameters)
+    map_list=[]
+    hs_dim=2
 
-    forwardprop_derivs_list = []
-    mpo_list=[]
+    #start_cap=tn.Node(np.array([1.]))
+    d = 1  # dimension of each leg
+    start_cap = np.zeros((d, d, d))
+    for i in range(d):
+        start_cap[i, i, i] = 1.0
+    
+    forward_nodes=[tn.Node(start_cap)]
+    short_time_props=[]
 
-    for step in range(1,num_steps+1):
+    # (TODO: multiple process tensor compatibility)
+    # forward propagation
+    for step in range(0,num_steps):
 
-        if step == num_steps:
+        # -- creates short time propagator for each step --
+        pt_mpos = _get_pt_mpos(process_tensors, step)
+
+        current_node = tn.Node(pt_mpos[0])
+
+        current_edges=current_node[:]
+
+        first_propagator,second_propagator=propagators(step)
+
+        current_node,current_edges=apply_mpo_propagators(current_node,current_edges,first_propagator,second_propagator)
+
+        short_time_props.append(tn.replicate_nodes([current_node])[0])
+
+        if step==0:
+            prev_node,prev_edges=current_node,current_edges
+            caps = _get_caps(process_tensors, 1)
+            map_tensor = _apply_caps(current_node, current_edges[1:], caps)
+            map_list.append(map_tensor[0])
+            continue
+        
+        fwd_node=tn.Node(prev_node.tensor[0])
+        forward_nodes.append(tn.replicate_nodes([fwd_node])[0])
+
+        
+        new_node,new_edges=stitch_mpos(prev_node,prev_edges,current_node,current_edges)
+        new_edges=new_node[:]
+
+        caps = _get_caps(process_tensors, step)
+        map_tensor = _apply_caps(new_node, new_edges[1:], caps)
+        map_list.append(map_tensor)
+
+        prev_node,prev_edges=new_node,new_edges
+
+    grad_list=[]
+    # back propagation
+    for step in reversed(range(0,num_steps)):
+        
+        pt_mpos = _get_pt_mpos(process_tensors, step)
+ 
+        forwardprop_node=forward_nodes[step]
+        fwd_edges=forwardprop_node[:]
+        
+        # applying mpo without propagators to fwd prop tensor
+ 
+        current_node,current_edges = apply_derivative_gate(
+        forwardprop_node,fwd_edges,pt_mpos[0])
+
+        if step==num_steps-1: # first step of backprop
+
+            caps = _get_caps(process_tensors, 1)
+            grad_tensor = _apply_caps(current_node, current_edges, caps)
+            grad_list.append(grad_tensor)
+
+            prev_node,prev_edges=short_time_props[step],short_time_props[step][:]
+            continue
+        
+        # construct derivative
+        back_prop_node=tn.replicate_nodes([prev_node])[0]
+
+        back_prop_edges=back_prop_node[:]
+        current_edges[0] ^ back_prop_edges[0]
+
+        deriv_node = tn.contract_between(current_node, back_prop_node)
+
+        deriv_edges=[back_prop_edges[1],current_edges[1],current_edges[2],current_edges[3],current_edges[4],back_prop_edges[2],back_prop_edges[3]]
+        deriv_node.reorder_edges(deriv_edges)
+        
+        caps = _get_caps(process_tensors, 1)
+        grad_tensor = _apply_caps(deriv_node,deriv_edges, caps)
+
+        grad_list.append(grad_tensor)
+
+        if step==0: # last step (only need N-1 back prop tensors)
             break
 
-        forwardprop_derivs_list.append(tn.replicate_nodes([current_node])[0])
+        # do back propagation
+        short_time_node,short_time_edge=short_time_props[step],short_time_props[step][:]
 
-        # -- propagate one time step --
-        first_half_prop, second_half_prop = propagators(step)
+        prev_edges[0]^short_time_edge[1] # bond edges
+        prev_edges[2]^short_time_edge[3] # system edges
+        new_node = tn.contract_between(prev_node, short_time_node)
+        new_edges = [short_time_edge[0], prev_edges[1], short_time_edge[2], prev_edges[3]]
+        new_node.reorder_edges(new_edges)
 
-        pt_mpos = _get_pt_mpos(process_tensors, step)
-        mpo_list.append(pt_mpos)
+        prev_node,prev_edges=new_node,new_edges
+    
+    grad_list=list(reversed(grad_list))
 
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, first_half_prop)
-        current_node, current_edges = _apply_pt_mpos(
-            current_node, current_edges, pt_mpos)
+    grad_list[0]=np.squeeze(grad_list[0]) # remove dummy legs that come from start_cap
+    
+    return map_list,grad_list
 
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, second_half_prop)
+def gate_chain_rule(
+        adjoint_tensor:ndarray,
+        dprop_dparam:Callable[[int], Tuple[ndarray,ndarray]],
+        propagators:Callable[[int], Tuple[ndarray,ndarray]],
+        num_steps:int,
+        num_parameters:int,
+        progress_type: Optional[Text] = None):
 
-    # -- extract last state --
-    caps = _get_caps(process_tensors, num_steps)
-    map = _apply_caps(current_node, current_edges, caps)
+    def combine_derivs(
+            target_deriv,
+            pre_prop,
+            post_prop):
+        target_node = tn.Node(target_deriv)
+        pre_node=tn.Node(pre_prop)
+        post_node=tn.Node(post_prop)
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    # ~~~~~ Backpropagation ~~~~~~
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        target_node[1]^pre_node[0]
+        target_node[2]^pre_node[1]
+        target_node[3]^post_node[0]
+        target_node[4]^post_node[1]
 
-    # -- initialize computation (except backwards) --
-    #
-    #  Initial state including the bond legs to the environments with:
-    #    edges 0, 1, .., num_envs-1    are the bond legs of the environments
-    #    edge  -1                      is the state leg
+        final_node = target_node @ pre_node \
+                        @ post_node
+        tensor = final_node.tensor
 
-    title = "--> Compute backward propagation:"
+        return tensor
+    
+    hs_dim=2
+    d = hs_dim**2
+    total_derivs = np.zeros((2*num_steps, num_parameters, d, d), dtype='complex128')
+
+
+    title = "--> Apply chain rule:"
     prog_bar = get_progress(progress_type)(num_steps, title)
     prog_bar.enter()
 
-    forwardprop_tensor = forwardprop_derivs_list[num_steps-2]
-    combined_deriv_list=[]
+    for i in range(0,num_steps): # populating two elements each step
 
-    pt_mpos = mpo_list[num_steps-2]
+        first_half_prop, second_half_prop = propagators(i)
+        first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(i)
 
-    #new_mpo=np.squeeze(pt_mpos,0) # reshape MPO to work with algorithm
+        prog_bar.update(i)
 
-    current_node=tn.Node(new_mpo)
-    current_edges=current_node[:]
-    backprop_tensor = tn.replicate_nodes([current_node])[0]
+        for j in range(0,num_parameters):
+            total_derivs[2*i][j] = combine_derivs(
+                            adjoint_tensor[i],
+                            first_half_prop_derivs[j].T,
+                            second_half_prop.T)
+            total_derivs[2*i+1][j] = combine_derivs(
+                adjoint_tensor[i],
+                first_half_prop.T,
+                second_half_prop_derivs[j].T)
 
-    fwd_edges = forwardprop_tensor[:]
-    deriv_forwardprop_tensor, fwd_edges = _apply_derivative_pt_mpos(
-        forwardprop_tensor,fwd_edges,pt_mpos)
+    prog_bar.update(num_steps)
+    prog_bar.exit()
 
-    for i, _ in enumerate(pt_mpos):
-        fwd_edges[i] ^ backprop_tensor[i]
+    return total_derivs
 
-    deriv = deriv_forwardprop_tensor @ backprop_tensor
 
-    combined_deriv_list.append(tn.replicate_nodes([deriv])[0])
+def apply_mpo_propagators(current_node,current_edges,first_propagator,second_propagator):
+    
+    current_edges= current_node[:]
 
-    for loop, step in enumerate(reversed(range(1,num_steps))):
+    first_node = tn.Node(first_propagator.T)
+    second_node= tn.Node(second_propagator.T)
 
-        prog_bar.update(loop)
+    new_input=first_node[0]
+    new_output=second_node[1]
+    new_bond_in=current_node[0]
+    new_bond_out=current_node[1]
 
-        # -- now the backpropagation part --
-        first_half_prop, second_half_prop = propagators(step)
-        pt_mpos = _get_pt_mpos_backprop(mpo_list, step)
+    current_edges[2] ^ first_node[1]
+    current_edges[3] ^ second_node[0]
 
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, second_half_prop.T)
+    new_node = current_node @ first_node @ second_node
+    new_edges=new_node[:]
+    new_edges[3] = new_output
+    new_edges[2] = new_input
+    new_edges[1]=new_bond_out
+    new_edges[0]=new_bond_in
 
-        current_node, current_edges = _apply_pt_mpos(
-            current_node, current_edges, pt_mpos)
+    new_node.reorder_edges(new_edges) 
+ 
+    return new_node,new_edges
 
-        current_node, current_edges = _apply_system_superoperator(
-            current_node, current_edges, first_half_prop.T)
+def stitch_mpos(prev_node,prev_edges,curr_node,curr_edges):
 
-        forwardprop_tensor = forwardprop_derivs_list[step-1]
+    prev_edges=prev_node[:]
+    curr_edges=curr_node[:]
 
-        backprop_tensor =  tn.replicate_nodes([current_node])[0]
+    prev_edges[3] ^ curr_edges[2]   
+    prev_edges[1] ^ curr_edges[0]  
+    new_node = tn.contract_between(prev_node, curr_node)
+    new_edges = [prev_edges[0], curr_edges[1], prev_edges[2], curr_edges[3]]
+    new_node.reorder_edges(new_edges)
 
-        pt_mpos = mpo_list[step-1]
+    return new_node,new_edges
 
-        fwd_edges = forwardprop_tensor[:]
-        deriv_forwardprop_tensor,fwd_edges = _apply_derivative_pt_mpos(
-            forwardprop_tensor,fwd_edges,pt_mpos)
+def apply_derivative_gate(prev_node,prev_edges,pt_mpo):
 
-        for i, _ in enumerate(pt_mpos):
-            fwd_edges[i] ^ backprop_tensor[i]
+    mpo_node=tn.Node(pt_mpo)
 
-        deriv = deriv_forwardprop_tensor @ backprop_tensor
+    mpo_edges=mpo_node[:]
+    prev_edges=prev_node[:]
 
-        combined_deriv_list.append(deriv.get_tensor())
-        # ordering of axis:
-        # deriv[0] : output leg of 2nd half-propagator from step (n-1)
-        # deriv[1] : input system leg of MPO from step n
-        # deriv[2] : output system leg of MPO from step n
-        # deriv[3] : input lef of 1st half-propagator from step (n+1)
+    prev_edges[0]^mpo_edges[0]
+    new_node=tn.contract_between(prev_node,mpo_node)
+    new_edges=new_node[:]
 
-    propagator_derivatives = list(reversed(combined_deriv_list))
+    new_edges=[mpo_edges[1],prev_edges[1],prev_edges[2],mpo_edges[2],mpo_edges[3]]
 
-    return propagator_derivatives, map
+    new_node.reorder_edges(new_edges)
+
+    return new_node,new_edges
+
+
+
+
 

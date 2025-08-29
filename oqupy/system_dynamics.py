@@ -690,6 +690,7 @@ def _apply_pt_mpos(current_node, current_edges, pt_mpos):
         if pt_mpo is None:
             continue
         pt_mpo_node = tn.Node(pt_mpo)
+
         new_bond_edge = pt_mpo_node[1]
         new_sys_edge = pt_mpo_node[3]
         current_edges[i] ^ pt_mpo_node[0]
