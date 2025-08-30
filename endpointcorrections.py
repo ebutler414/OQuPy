@@ -48,8 +48,8 @@ def trapezoidal_fft_integral(samples,a,delta,n):
     ws=np.vectorize(w)(thetas)
     a0s=np.vectorize(alpha0)(thetas)
     dftres=np.fft.ifft(samples,n=n,norm="forward")
-    #dumbway=dftres
+    dumbway=np.copy(dftres)
     dftres=delta*np.exp(1.0j*omegas*a)*(dftres*ws+a0s*samples[0]+
                                         +np.conjugate(a0s)*samples[m]*np.exp(1.0j*omegas*(m*delta-a)))
-    return omegas,dftres#,delta*dumbway
+    return omegas,dftres,delta*dumbway
 

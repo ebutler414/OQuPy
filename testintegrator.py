@@ -15,7 +15,7 @@ dt=0.01
 times=np.arange(numt)*dt
 tdat=np.cos(12.0*times)
 
-omegas,fftres=trapezoidal_fft_integral(tdat,0,dt,1001)    
+omegas,fftres,dumb=trapezoidal_fft_integral(tdat,0,dt,1001)    
 
 # analytic result for integral from 0 to b, with y=12 the prefactor in the cosine.
 def analyticsft(omega, b, y):
@@ -25,13 +25,14 @@ def analyticsft(omega, b, y):
 
 omegas=np.fft.fftshift(omegas)
 fftres=np.fft.fftshift(fftres)
+dumb=np.fft.fftshift(dumb)
 
 analytic=np.vectorize(lambda x: analyticsft(x,1.0,12.0))(omegas)
 
 # plot them, along with the naive fourier transform result.
 plt.figure()
 plt.plot(omegas[::2],np.abs(fftres)[::2],'x', label='Integrator')
-#plt.plot(omegas[::5],np.abs(fftres)[::5],'x')
+plt.plot(omegas,np.abs(dumb),label='Simple FFT')
 plt.plot(omegas,np.abs(analytic),label='Analytic')
 plt.xlabel(r'$\omega$')
 plt.legend()

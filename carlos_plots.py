@@ -45,41 +45,41 @@ t_list_half = np.linspace(0,t_max,num_steps_half)
 N=6000
 c = 3*omega_cutoff/N
 
-name = 'alpha{}tmax{}wc{}wq0{}exponential'.format(alpha,round(t_max,3),round(omega_cutoff/2/np.pi,2),round(wq0/2/np.pi,2))
-name_replaced = name.replace('.','-')
+#name = 'alpha{}tmax{}wc{}wq0{}exponential'.format(alpha,round(t_max,3),round(omega_cutoff/2/np.pi,2),round(wq0/2/np.pi,2))
+#name_replaced = name.replace('.','-')
 #name_path = os.path.dirname(__file__)+'/opt/'+name_replaced  
-name_path = os.getcwd()+'/opt/'+name_replaced  
+#name_path = os.getcwd()+'/opt/'+name_replaced  
 
 
-opt_file = open(name_path, 'rb')    
-dict_run = pickle.load(opt_file)
-opt_file.close()
+#opt_file = open(name_path, 'rb')    
+#dict_run = pickle.load(opt_file)
+#opt_file.close()
 
-x0 = dict_run['optimization_result'].x
+#x0 = dict_run['optimization_result'].x
 
 
 # Oqupy calculation
 
-#from oqupy.iTEBD_TEMPO_useoqupybath import iTEBD_TEMPO_oqupy
-#from oqupy.process_tensor import TTInvariantProcessTensor
-#from oqupy.tti_tempo import TTITempo
+from oqupy.iTEBD_TEMPO_useoqupybath import iTEBD_TEMPO_oqupy
+from oqupy.process_tensor import TTInvariantProcessTensor
+from oqupy.tti_tempo import TTITempo
 
 name = 'alpha{}wc{}wq0{}exponential'.format(alpha,round(omega_cutoff/2/np.pi,2),round(wq0/2/np.pi,2))
 name_replaced = name.replace('.','-')
-#name_path = os.path.dirname(__file__)+'/pt/'+name_replaced+".processTensor"       
+name_path = os.path.dirname(__file__)+'/pt/'+name_replaced+".processTensor"       
 name_path = os.getcwd() + '/pt/'+name_replaced+".processTensor"
 pt_file = open(name_path,'rb')
 process_tensor_tebd = dill.load(pt_file)
 pt_file.close()
 
 
-h_x_opt = np.expand_dims(dict_run['optimization_result'].x,1)
+#h_x_opt = np.expand_dims(dict_run['optimization_result'].x,1)
 
 #%%
 
 
 pt=process_tensor_tebd
-hx=h_x_opt[0]
+hx=omega_cutoff/2
 system=oqupy.System(hx*op.sigma('x'))
 pt.set_length(2200) 
 spin_down = oqupy.operators.spin_dm("down")
@@ -91,7 +91,7 @@ w = omega_cutoff
 delta = 0.1 * omega_cutoff
 
 initial_state = op.spin_dm('mixed')
-dynamics=oqupy.compute_dynamics(system=system,initial_state=initial_state,process_tensor=pt,num_steps=2000)
+dynamics=oqupy.compute_dynamics(system=system,initial_state=initial_state,process_tensor=pt,num_steps=2200)
 times,sx=dynamics.expectations(s_x)
 
 #%%
@@ -137,13 +137,14 @@ plt.show()
 def plotdispl(time):
     tsforplot=int(time//dt)
     tindx=tsforplot
-    n=10000
-    pstep=10
+    n=np.shape(cfarr[:,tindx])[0]#6000
+    pstep=1
     tdat=cfarr[:,tindx]
-    allomega,ftcfarr=trapezoidal_fft_integral(tdat, 0.0, dt, n)
+    allomega,ftcfarr,ftcarrdumb=trapezoidal_fft_integral(tdat, 0.0, dt, n)
     
     omega=allomega[0:n//2]
     disps=ftcfarr[0:n//2]
+    dispsdumb=ftcfarr[0:n//2]
     
     # multiply by the spectral density.
     
@@ -151,10 +152,17 @@ def plotdispl(time):
     
     disps=-2.0j*np.exp(-1.0j*tindx*dt)*disps
     
+    
+    dispsdumb=dispsdumb*corr.spectral_density(omega)
+    
+    dispsdumb=-2.0j*np.exp(-1.0j*tindx*dt)*dispsdumb
+    
+    
     # compare with displacements in the polaron state
     wq=2*hx
     plt.plot(omega,corr.spectral_density(omega)/(2*(wq+omega)),label='Polaron Ansatz')
     plt.plot(omega[::pstep],np.abs(disps)[::pstep],label='OQuPy')
+    plt.plot(omega[::pstep],np.abs(dispsdumb)[::pstep],label='OQuPy-Simple FFT')
     plt.xlim(right=150)
     plt.xlabel(r'$\omega$ (ns$^{-1}$)')
     plt.ylabel(r'$|f(\omega)|^2$ (ns)')
@@ -162,9 +170,13 @@ def plotdispl(time):
     t=tindx*dt
     plt.text(0.8,0.4,rf't={t:.1f}',transform=plt.gca().transAxes)
     plt.legend()
+    print(np.max(np.abs(disps-dispsdumb)))
 
-plotdispl(1.0)
+plotdispl(2.0)
 plt.figure()
 plotdispl(10.0)
 plt.figure()
 plotdispl(20.0)
+plt.figure()
+
+
