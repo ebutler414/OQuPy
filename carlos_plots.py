@@ -172,11 +172,57 @@ def plotdispl(time):
     plt.legend()
     print(np.max(np.abs(disps-dispsdumb)))
 
-plotdispl(2.0)
-plt.figure()
-plotdispl(10.0)
-plt.figure()
-plotdispl(20.0)
-plt.figure()
+#%%
+# refactored to do the ft slightly differently
+def plotdispl2(time,natten):
+    tsforplot=int(time//dt)
+    tindx=tsforplot
+    n=np.shape(cfarr[:,tindx])[0]#6000
+    pstep=1
+    tdat=cfarr[:(tindx+1),tindx]
+    #natten=tindx/natten
+    attenfactor=np.exp(np.arange(-tindx,1)/natten)
+    tdat=tdat*attenfactor
+    allomega,ftcfarr,ftcarrdumb=trapezoidal_fft_integral(tdat, 0, dt, n)
+    
+    omega=allomega[0:n//2]
+    disps=ftcfarr[0:n//2]
+    dispsdumb=ftcarrdumb[0:n//2]
+    
+    # multiply by the spectral density.
+    
+    disps=-2.0j*disps*corr.spectral_density(omega)
+
+    dispsdumb=dispsdumb*corr.spectral_density(omega)
+    
+    dispsdumb=-2.0j*np.exp(-1.0j*tindx*dt)*dispsdumb
+    
+    # compare with displacements in the polaron state
+    wq=2*hx
+    plt.plot(omega,corr.spectral_density(omega)/(2*(wq+omega)),label='Polaron Ansatz')
+    plt.plot(omega[::pstep],np.abs(disps)[::pstep],label='OQuPy')
+    plt.plot(omega[::pstep],np.abs(dispsdumb)[::pstep],label='OQuPy-Simple FFT')
+    plt.xlim(right=150)
+    plt.xlabel(r'$\omega$ (ns$^{-1}$)')
+    plt.ylabel(r'$|f(\omega)|^2$ (ns)')
+    plt.text(0.8,0.5,r'$\alpha$=0.03',transform=plt.gca().transAxes)
+    t=tindx*dt
+    plt.text(0.8,0.4,rf't={t:.1f}',transform=plt.gca().transAxes)
+    plt.legend()
+    print(np.max(np.abs(disps-dispsdumb)))
 
 
+fig,ax=plt.subplots(nrows=3,ncols=1)
+
+plt.sca(ax[0])
+plotdispl2(2.0,200)
+plt.sca(ax[1])
+plotdispl2(5.0,200)
+plt.sca(ax[2])
+plotdispl2(10.0,200)
+plt.show()
+
+
+
+
+# %%
