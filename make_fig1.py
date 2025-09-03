@@ -107,7 +107,7 @@ def displacementdensity(time,natten):
     disps=disps*np.exp(-1.0j*omega*tindx*dt)
     return omega,disps
 
-omega,disps=displacementdensity(10.0,50)
+omega,disps=displacementdensity(10.0,54)
 wq=2*hx
 every=10
 plt.figure()
