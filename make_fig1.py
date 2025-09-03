@@ -64,17 +64,14 @@ corr = oqupy.PowerLawSD(alpha, 1, omega_cutoff, temperature = 0.0)
 bath = oqupy.Bath(s_z, corr)
 w = omega_cutoff
 delta = 0.1 * omega_cutoff
-initial_state = op.spin_dm('mixed')
-corrfile='bath_corr_mixedic.pkl'
-
 #%%
-#dynamics=oqupy.compute_dynamics(system=system,initial_state=initial_state,process_tensor=pt,num_steps=2200)
-#times,sx=dynamics.expectations(s_x)
-#plt.figure()
-#plt.plot(times,sx.real)
-#plt.xlabel('Time')
-#plt.ylabel('sigma_x')
-#plt.show()
+startings=False
+if startings:
+    initial_state = op.spin_dm('x-')
+    corrfile='bath_corr_xdownic.pkl'
+else:
+    initial_state = op.spin_dm('mixed')
+    corrfile='bath_corr_mixedic.pkl'
 
 if os.path.isfile(corrfile):
     print('loading correlation from file')
@@ -108,11 +105,12 @@ def displacementdensity(time,natten):
     return omega,disps
 
 
+timeforplot=5
 fwhmomega=2 # freq averaging is lorentzian of this fwhm 
 tavg=2/fwhmomega
 ntavg=int(tavg//dt)
-omega,disps=displacementdensity(10.0,ntavg)
-print('Requested FWHM =',fwhmomega,' Used = ',2/(dt*ntavg))
+omega,disps=displacementdensity(timeforplot,ntavg)
+print('Time decay =',tavg,'Requested FWHM =',fwhmomega,' Used = ',2/(dt*ntavg))
 wq=2*hx
 every=int(fwhmomega//(omega[1]-omega[0]))
 plt.figure()
@@ -122,6 +120,15 @@ plt.plot(omega[::every],1000*np.abs(disps)[::every],'o',markersize=3)
 plt.xlim(0,100)
 plt.xlabel(r'$\omega$ (ns$^{-1}$)')
 plt.ylabel(r'$|gf(\omega)|\times 10^3$ (ns)')
+xft=0.65
+yft=0.7
+dy=0.1
+plt.text(xft,yft-2*dy,rf't={timeforplot:.1f} ns',transform=plt.gca().transAxes)
+if startings:
+    plt.text(xft,yft,r'Initial g.s.',transform=plt.gca().transAxes)
+else:
+    plt.text(xft,yft,r'Mixed g.s.',transform=plt.gca().transAxes)
+plt.text(xft,yft-dy,rf'$\delta\omega$={fwhmomega:.1f} ns$^{{-1}}$',transform=plt.gca().transAxes)
 plt.show()
 
 
