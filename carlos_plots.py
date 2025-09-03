@@ -3,7 +3,6 @@
 
 # In[1]:
 
-
 import sys
 sys.path.insert(0,'..')
 import os 
@@ -16,7 +15,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.transforms import ScaledTranslation
 
-#plt.style.use('physrev') 
+
+plt.style.use('physrev.mplstyle')
+#plt.use('qt')
+#plt.rcParams['figure.dpi'] = "300"
+
 #plt.rcParams['figure.dpi'] = "75"
 
 from scipy.integrate import solve_ivp
@@ -82,98 +85,49 @@ pt=process_tensor_tebd
 hx=omega_cutoff/2
 system=oqupy.System(hx*op.sigma('x'))
 pt.set_length(2200) 
-spin_down = oqupy.operators.spin_dm("down")
 s_z = 0.5*oqupy.operators.sigma("z")
 s_x = 0.5*oqupy.operators.sigma("x")
 corr = oqupy.PowerLawSD(alpha, 1, omega_cutoff, temperature = 0.0)
 bath = oqupy.Bath(s_z, corr)
 w = omega_cutoff
 delta = 0.1 * omega_cutoff
-
 initial_state = op.spin_dm('mixed')
-dynamics=oqupy.compute_dynamics(system=system,initial_state=initial_state,process_tensor=pt,num_steps=2200)
-times,sx=dynamics.expectations(s_x)
 
 #%%
-
+dynamics=oqupy.compute_dynamics(system=system,initial_state=initial_state,process_tensor=pt,num_steps=2200)
+times,sx=dynamics.expectations(s_x)
 plt.figure()
 plt.plot(times,sx.real)
 plt.xlabel('Time')
 plt.ylabel('sigma_x')
+plt.show()
 
 # In[4]:
 
-
-if os.path.isfile('bath_corr.pkl'):
+corrfile='bath_corr_mixedic.pkl'
+if os.path.isfile(corrfile):
     print('loading correlation from file')
-    with open('bath_corr.pkl', 'rb') as f:
+    with open(corrfile, 'rb') as f:
         bath_corr=dill.load(f)
 else:
     print('generating correlations and saving to file')
     bath_corr = oqupy.bath_dynamics.TwoTimeBathCorrelations(system, bath, pt, initial_state)
     tlist, occ = bath_corr.occupation(w, delta, change_only = True)
-    with open('bath_corr.pkl', 'wb') as f:
+    with open(corrfile, 'wb') as f:
         dill.dump(bath_corr,f) 
     energy = w * occ
-
-
-#plt.plot(tlist[1:],energy)
-#plt.show()
-
-
-
-
 cfarr=np.array(bath_corr._system_correlations)
 cfarr[np.isnan(cfarr)] = 0
-plt.clf()
-tsforplot=108
-tforplot=tsforplot*dt
-tprimes=dt*np.arange(0,tsforplot+1)
-plt.plot(tprimes,cfarr[:(tsforplot+1),tsforplot].real)
-plt.plot(tprimes,cfarr[:(tsforplot+1),tsforplot].imag)
-plt.show()
+#plt.clf()
+#tsforplot=108
+#tforplot=tsforplot*dt
+#tprimes=dt*np.arange(0,tsforplot+1)
+#plt.plot(tprimes,cfarr[:(tsforplot+1),tsforplot].real)
+#plt.plot(tprimes,cfarr[:(tsforplot+1),tsforplot].imag)
+#plt.show()
 
 #%%
-def plotdispl(time):
-    tsforplot=int(time//dt)
-    tindx=tsforplot
-    n=np.shape(cfarr[:,tindx])[0]#6000
-    pstep=1
-    tdat=cfarr[:,tindx]
-    allomega,ftcfarr,ftcarrdumb=trapezoidal_fft_integral(tdat, 0.0, dt, n)
-    
-    omega=allomega[0:n//2]
-    disps=ftcfarr[0:n//2]
-    dispsdumb=ftcfarr[0:n//2]
-    
-    # multiply by the spectral density.
-    
-    disps=disps*corr.spectral_density(omega)
-    
-    disps=-2.0j*np.exp(-1.0j*tindx*dt)*disps
-    
-    
-    dispsdumb=dispsdumb*corr.spectral_density(omega)
-    
-    dispsdumb=-2.0j*np.exp(-1.0j*tindx*dt)*dispsdumb
-    
-    
-    # compare with displacements in the polaron state
-    wq=2*hx
-    plt.plot(omega,corr.spectral_density(omega)/(2*(wq+omega)),label='Polaron Ansatz')
-    plt.plot(omega[::pstep],np.abs(disps)[::pstep],label='OQuPy')
-    plt.plot(omega[::pstep],np.abs(dispsdumb)[::pstep],label='OQuPy-Simple FFT')
-    plt.xlim(right=150)
-    plt.xlabel(r'$\omega$ (ns$^{-1}$)')
-    plt.ylabel(r'$|f(\omega)|^2$ (ns)')
-    plt.text(0.8,0.5,r'$\alpha$=0.03',transform=plt.gca().transAxes)
-    t=tindx*dt
-    plt.text(0.8,0.4,rf't={t:.1f}',transform=plt.gca().transAxes)
-    plt.legend()
-    print(np.max(np.abs(disps-dispsdumb)))
-
-#%%
-# refactored to do the ft slightly differently
+# function to do ft and plot displacements
 def plotdispl2(time,natten):
     tsforplot=int(time//dt)
     tindx=tsforplot
