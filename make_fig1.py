@@ -107,9 +107,14 @@ def displacementdensity(time,natten):
     disps=disps*np.exp(-1.0j*omega*tindx*dt)
     return omega,disps
 
-omega,disps=displacementdensity(10.0,54)
+
+fwhmomega=2 # freq averaging is lorentzian of this fwhm 
+tavg=2/fwhmomega
+ntavg=int(tavg//dt)
+omega,disps=displacementdensity(10.0,ntavg)
+print('Requested FWHM =',fwhmomega,' Used = ',2/(dt*ntavg))
 wq=2*hx
-every=10
+every=int(fwhmomega//(omega[1]-omega[0]))
 plt.figure()
 plt.plot(omega,1000*corr.spectral_density(omega)/(2*(wq+omega)),label='Polaron Ansatz')
 plt.plot(omega,1000*np.abs(disps))
