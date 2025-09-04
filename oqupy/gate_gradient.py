@@ -69,7 +69,7 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
     map_list=[]
     hs_dim=2
 
-    #start_cap=tn.Node(np.array([1.]))
+    
     d = 1  # dimension of each leg
     start_cap = np.zeros((d, d, d))
     for i in range(d):
@@ -77,7 +77,7 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
     
     forward_nodes=[tn.Node(start_cap)]
     short_time_props=[]
-
+    
     # (TODO: multiple process tensor compatibility)
     # forward propagation
     for step in range(0,num_steps):
@@ -94,7 +94,6 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
         current_node,current_edges=apply_mpo_propagators(current_node,current_edges,first_propagator,second_propagator)
 
         short_time_props.append(tn.replicate_nodes([current_node])[0])
-
         if step==0:
             prev_node,prev_edges=current_node,current_edges
             caps = _get_caps(process_tensors, 1)
@@ -102,9 +101,10 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
             map_list.append(map_tensor[0])
             continue
         
-        fwd_node=tn.Node(prev_node.tensor[0])
-        forward_nodes.append(tn.replicate_nodes([fwd_node])[0])
+        fwd_node=tn.replicate_nodes([prev_node])[0]
+        fwd_node=tn.Node(fwd_node.tensor[0])
 
+        forward_nodes.append(tn.replicate_nodes([fwd_node])[0])
         
         new_node,new_edges=stitch_mpos(prev_node,prev_edges,current_node,current_edges)
         new_edges=new_node[:]
@@ -116,6 +116,8 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
         prev_node,prev_edges=new_node,new_edges
 
     grad_list=[]
+
+    back_list=[]
     # back propagation
     for step in reversed(range(0,num_steps)):
         
@@ -142,6 +144,7 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
         back_prop_node=tn.replicate_nodes([prev_node])[0]
 
         back_prop_edges=back_prop_node[:]
+        back_list.append(back_prop_node.tensor)
         current_edges[0] ^ back_prop_edges[0]
 
         deriv_node = tn.contract_between(current_node, back_prop_node)
@@ -201,6 +204,42 @@ def gate_chain_rule(
 
         return tensor
     
+    def combine_derivs_first(target_deriv,
+                pre_prop,
+                post_prop):
+
+        target_node = tn.Node(target_deriv)
+        pre_node=tn.Node(pre_prop)
+        post_node=tn.Node(post_prop)
+        target_edges,pre_edges,post_edges=target_node[:],pre_node[:],post_node[:]
+
+        target_edges[0]^pre_edges[1]
+        target_edges[1]^post_edges[0]
+        target_edges[2]^post_edges[1]
+        g0=pre_node@target_node@post_node
+
+        g0=g0.tensor
+
+        return g0
+
+    def combine_derivs_last(target_deriv,
+                pre_prop,
+                post_prop):
+
+        target_node = tn.Node(target_deriv)
+        pre_node=tn.Node(pre_prop)
+        post_node=tn.Node(post_prop)
+        target_edges,pre_edges,post_edges=target_node[:],pre_node[:],post_node[:]
+
+        target_edges[1]^pre_edges[0]
+        target_edges[2]^pre_edges[1]
+        target_edges[3]^post_edges[0]
+        g0=pre_node@target_node@post_node
+
+        g0=g0.tensor
+
+        return g0
+    
     hs_dim=2
     d = hs_dim**2
     total_derivs = np.zeros((2*num_steps, num_parameters, d, d), dtype='complex128')
@@ -210,7 +249,20 @@ def gate_chain_rule(
     prog_bar = get_progress(progress_type)(num_steps, title)
     prog_bar.enter()
 
-    for i in range(0,num_steps): # populating two elements each step
+    first_half_prop, second_half_prop = propagators(0)
+    first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(0)
+    i=0
+    for j in range(0,num_parameters):
+        total_derivs[2*i][j] = combine_derivs_first(
+                        adjoint_tensor[i],
+                        first_half_prop_derivs[j].T,
+                        second_half_prop.T)
+        total_derivs[2*i+1][j] = combine_derivs_first(
+            adjoint_tensor[i],
+            first_half_prop.T,
+            second_half_prop_derivs[j].T)
+
+    for i in range(1,num_steps-1): # populating two elements each step
 
         first_half_prop, second_half_prop = propagators(i)
         first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(i)
@@ -229,6 +281,21 @@ def gate_chain_rule(
 
     prog_bar.update(num_steps)
     prog_bar.exit()
+    
+    first_half_prop, second_half_prop = propagators(num_steps-1)
+    first_half_prop_derivs,second_half_prop_derivs = dprop_dparam(num_steps-1)
+
+    i=num_steps-1
+
+    for j in range(0,num_parameters):
+        total_derivs[2*i][j] = combine_derivs_last(
+                        adjoint_tensor[i],
+                        first_half_prop_derivs[j].T,
+                        second_half_prop.T)
+        total_derivs[2*i+1][j] = combine_derivs_last(
+            adjoint_tensor[i],
+            first_half_prop.T,
+            second_half_prop_derivs[j].T)
 
     return total_derivs
 
