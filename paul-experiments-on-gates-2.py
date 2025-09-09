@@ -76,6 +76,10 @@ map_list=[i[0] for i in map_list] # make map_list a more sensible arrangement
 
 
 # %%
+import numdifftools as ndt
+
+# %%
+
 def outstate(dynmap,instate):
     # return the final state for a given input state
     return np.matmul(instate.flatten(),dynmap)
@@ -97,9 +101,21 @@ plt.plot(sz.real,label='z')
 plt.plot(obfunvals.real,label='Fidelity to y+')#
 plt.legend()
 
+def dobjdcontrol(ofun,controls,dmapdcontrols):
+     # compute an objective function and its derivatives with respect
+     # to the control parameters, at the control parameters controls.
+     # controls : nsxnparam array, where ns is the
+     # number of half steps and nparam the number of parameters.
+     # dmapdcontrols : ns,nparam,d2,d2 array, giving the derivatives
+     # of the d2xd2 map with respect to the control nparam and half-step ns
+     # returns: [ns,nparam] array, each of which is df/d(corresponding control)
+     dfdmap=ndt.Jacobian(lambda x: ofun(controls).flatten())
+     
+
 
 
 # %%
+
 #%%%
 
 # %%
