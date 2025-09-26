@@ -51,7 +51,7 @@ def compute_dynamical_map(system: ParameterizedSystem,
 
         caps = _get_caps(process_tensors, step)
         map_tensor = _apply_caps(new_node, new_edges[1:], caps)
-        map_list.append(map_tensor)
+        map_list.append(np.squeeze(map_tensor))
 
         prev_node,prev_edges=new_node,new_edges
 
@@ -111,7 +111,7 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
 
         caps = _get_caps(process_tensors, step)
         map_tensor = _apply_caps(new_node, new_edges[1:], caps)
-        map_list.append(map_tensor)
+        map_list.append(np.squeeze(map_tensor))
 
         prev_node,prev_edges=new_node,new_edges
 
@@ -155,7 +155,7 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
         caps = _get_caps(process_tensors, 1)
         grad_tensor = _apply_caps(deriv_node,deriv_edges, caps)
 
-        grad_list.append(grad_tensor)
+        grad_list.append(np.squeeze(grad_tensor)) # remove dummy legs that come from start_cap
 
         if step==0: # last step (only need N-1 back prop tensors)
             break
@@ -166,6 +166,7 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
         prev_edges[0]^short_time_edge[1] # bond edges
         prev_edges[2]^short_time_edge[3] # system edges
         new_node = tn.contract_between(prev_node, short_time_node)
+
         new_edges = [short_time_edge[0], prev_edges[1], short_time_edge[2], prev_edges[3]]
         new_node.reorder_edges(new_edges)
 
@@ -173,8 +174,6 @@ def compute_dynamical_map_and_grad(system: ParameterizedSystem,
     
     grad_list=list(reversed(grad_list))
 
-    grad_list[0]=np.squeeze(grad_list[0]) # remove dummy legs that come from start_cap
-    
     return map_list,grad_list
 
 def gate_chain_rule(
