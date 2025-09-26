@@ -29,6 +29,7 @@ print(f'Running with dt : {dt} ps, epsrel power: -{epsrel_pow}, tcut: {tcut} ps'
 
 pt_parameters = {'epsrel':epsrel,
                  'alpha':0.05,
+
                  'omega_cutoff':1,                 
                  'temp':0.131,
                  'dt':dt,
@@ -81,6 +82,7 @@ with open(file_name1,'wb') as f:
     dill.dump(processtensor,f)
 
 file_name1=os.path.join(folder,'processtensorCF_dt={0}_ps={1}_tcut={2}_alpha=0.05'.format(dt,np.round(np.log10(epsrel),1),tcut))
+
 with open(file_name1,'wb') as f:
     dill.dump(processtensorcf,f)
 
