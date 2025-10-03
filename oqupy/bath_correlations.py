@@ -19,6 +19,7 @@ from functools import lru_cache
 
 import numpy as np
 from scipy import integrate
+from scipy import special
 
 from oqupy.base_api import BaseAPIClass
 from oqupy.config import INTEGRATE_EPSREL, SUBDIV_LIMIT
@@ -590,6 +591,90 @@ class CustomSD(BaseCorrelations):
             integral = integral.real
         return -integral
 
+
+    def correlation_2d_integral_analytic_ohmic(
+            self,
+            delta: float,
+            time_1: float,
+            time_2: Optional[float] = None,
+            shape: Optional[Text] = 'square',
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT,
+            matsubara: Optional[bool] = False) -> complex:
+        r"""
+        2D integrals of the correlation function
+        SLIGHTLY WRONG!!!!!!!!!!!!!!!!!!!!!!!!1
+        .. math::
+
+            \eta_\mathrm{square} =
+            \int_{t_1}^{t_1+\Delta} \int_{0}^{\Delta} C(t'-t'') dt'' dt'
+
+            \eta_\mathrm{upper-triangle} =
+            \int_{t_1}^{t_1+\Delta} \int_{0}^{t'-t_1} C(t'-t'') dt'' dt'
+
+            \eta_\mathrm{rectangle} =
+            \int_{t_1}^{t_2} \int_{0}^{\Delta} C(t'-t'') dt'' dt'
+
+        for `shape` either ``'square'``, ``'upper-triangle'``,
+        or ``'rectangle'``.
+
+        Parameters
+        ----------
+        delta : float
+            Length of integration intervals.
+        time_1 : float
+            Lower bound of integration interval of :math:`dt'`.
+        time_2 : float
+            Upper bound of integration interval of :math:`dt'` for `shape` =
+            ``'rectangle'``.
+        shape : str (default = ``'square'``)
+            The shape of the 2D integral. Shapes are: {``'square'``,
+            ``'upper-triangle'``, ``'rectangle'``}
+        epsrel : float
+            Relative error tolerance.
+        subdiv_limit: int
+            Maximal number of interval subdivisions for numerical integration.
+
+        Returns
+        -------
+        integral : float
+            The numerical value for the two dimensional integral
+            :math:`\eta_\mathrm{shape}`.
+        """
+        kwargs = {
+            'epsrel': epsrel,
+            'subdiv_limit': subdiv_limit,
+            'matsubara': matsubara}
+
+        if shape == 'upper-triangle':
+            integral = self.eta_function(time_1 + delta, **kwargs) \
+                       - self.eta_function(time_1, **kwargs)
+        elif shape == 'square':
+
+            if self.temperature == 0.0:
+                integral = 2*self.alpha*( -2*np.log(1/self.cutoff+1j*time_1)+np.log(1/self.cutoff+1j*(time_1+delta))+np.log(1/self.cutoff+1j*(time_1-delta))          )
+                
+            else:
+                eta_re = 2*self.alpha*np.real(2*special.loggamma(self.temperature/self.cutoff+1j*time_1*self.temperature) \
+                                            -special.loggamma(self.temperature/self.cutoff+1j*(time_1+delta)*self.temperature) \
+                                            -special.loggamma(self.temperature/self.cutoff+1j*(time_1-delta)*self.temperature) \
+                                            +2*special.loggamma(1+self.temperature/self.cutoff+1j*time_1*self.temperature) \
+                                            -special.loggamma(1+self.temperature/self.cutoff+1j*(time_1+delta)*self.temperature) \
+                                            -special.loggamma(1+self.temperature/self.cutoff+1j*(time_1-delta)*self.temperature))
+                eta_im = 2*self.alpha*np.imag( -2*np.log(1/self.cutoff+1j*time_1)+np.log(1/self.cutoff+1j*(time_1+delta))+np.log(1/self.cutoff+1j*(time_1-delta))          )
+                integral = eta_re + 1j*eta_im
+        elif shape == 'rectangle':
+            integral = self.eta_function(time_2, **kwargs) \
+                       - self.eta_function(time_1, **kwargs) \
+                       - self.eta_function(time_2 - delta, **kwargs) \
+                       + self.eta_function(time_1 - delta, **kwargs)
+        else:
+            raise NotImplementedError("Shape '{shape}' not implemented.")
+
+        return integral
+
+
+
     def correlation_2d_integral(
             self,
             delta: float,
@@ -643,6 +728,15 @@ class CustomSD(BaseCorrelations):
             'epsrel': epsrel,
             'subdiv_limit': subdiv_limit,
             'matsubara': matsubara}
+
+        if self.cutoff_type == 'exponential' and self.zeta == 1.0:
+            return self.correlation_2d_integral_analytic_ohmic(delta = delta,
+            time_1 = time_1,
+            time_2 = time_2,
+            shape = shape,
+            epsrel = epsrel,
+            subdiv_limit = subdiv_limit,
+            matsubara = matsubara)
 
         if shape == 'upper-triangle':
             integral = self.eta_function(time_1 + delta, **kwargs) \
