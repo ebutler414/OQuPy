@@ -638,6 +638,192 @@ class ParameterizedSystem(BaseSystem):
     def lindblad_operators(self) -> List[Callable[[Tuple], ndarray]]:
         """List of lindblad operators. """
         return copy(self._lindblad_operators)
+    
+class ParameterizedSystem2ls(BaseSystem):
+    r"""
+    Represents a time discrete system with parameterized Hamiltonian H=hx(t)\sigma_x+hy(t)\sigma_y+hz(t)\sigma_z.
+    The equation of motion is
+
+    .. math::
+
+        \frac{d}{dt}\rho(t) = &-i [\hat{H}(u_i(t)), \rho(t)] \\
+            &+ \sum_n^N \gamma_n \left(
+                \hat{A}_n \rho(t) \hat{A}_n^\dagger
+                - \frac{1}{2} \hat{A}_n^\dagger \hat{A}_n \rho(t)
+                - \frac{1}{2} \rho(t) \hat{A}_n^\dagger \hat{A}_n \right)
+
+    with `parameterized hamiltionian` :math:`\hat{H}(u_i(t))`,
+    the rates `gammas` :math:`\gamma_n` and `linblad_operators`
+    :math:`\hat{A}_n`.
+
+    Parameters:
+    -----------
+    hamiltonian: Callable
+        System-only Hamiltonian :math:`\hat{H}`.
+    gammas: List[Callable]
+        The rates :math:`\gamma_n`.
+    lindblad_operators: List[Callable]
+        The Lindblad operators :math:`\hat{A}_n`.
+    name: str
+        An optional name for the system.
+    description: str
+        An optional description of the system.
+
+    """
+    def __init__(
+            self,
+            hamiltonian: Callable[[Tuple], ndarray],
+            gammas: \
+                Optional[List[Callable[[Tuple], float]]] = None,
+            lindblad_operators: \
+                Optional[List[Callable[[Tuple], ndarray]]] = None,
+            propagator_derivatives: Callable[[float, Tuple], ndarray] = None,
+            name: Optional[Text] = None,
+            description: Optional[Text] = None) -> None:
+        """Create a ParameterizedSystem object."""
+        # input check for Hamiltonian.
+        number_of_parameters = len(getfullargspec(hamiltonian).args)
+        self._hamiltonian = np.vectorize(hamiltonian)
+        trial_hamiltonian = hamiltonian(*(list([0.5]*number_of_parameters)))
+        _check_hamiltonian(trial_hamiltonian)
+        dimension = trial_hamiltonian.shape[0]
+
+        self._dimension = dimension
+        self._number_of_parameters = number_of_parameters
+        self._hamiltonian = hamiltonian
+        self._gammas,self._lindblad_operators = \
+            _check_parameterized_gammas_lindblad_operators(
+                gammas, lindblad_operators, number_of_parameters)
+        self._propagator_derivatives = propagator_derivatives
+        super().__init__(dimension, name, description)
+
+    def liouvillian(self, *parameters: float) -> ndarray:
+        """
+        Return the Liouvillian for a ParameterizedSystem with parameters given
+        """
+        hamiltonian = self._hamiltonian(*parameters)
+        gammas=[gamma(*parameters) for gamma in self._gammas]
+        lindblad_operators = \
+            [lop(*parameters) for lop in self._lindblad_operators]
+        return _liouvillian(hamiltonian, gammas,lindblad_operators)
+    
+    
+    def get_propagators(
+            self,
+            dt: float,
+            parameters: ndarray) -> Callable[[int], Tuple[ndarray,ndarray]]:
+        """
+        ToDo
+        """
+        def propagators(step: int):
+            """Create the system propagators (first and second half) for
+            the time step `step`  """
+
+            [hx, hy, hz] = parameters[2*step][:]
+            h = np.linalg.norm( parameters[2*step][:] )
+            A = np.cos(h*dt/2.0)
+            B = np.sin(h*dt/2.0)
+
+            u1 = np.array([[A-1.0j*B*hz/h,-1.0j*B*(hx-1.0j*hy)/h],[-1j*B*(hx+1.0j*hy)/h,A+1.0j*B*hz/h]])
+            first_step = np.kron(u1,np.conjugate(u1))
+
+            [hx, hy, hz] = parameters[2*step+1][:]
+            h = np.linalg.norm( parameters[2*step+1][:] )
+            A = np.cos(h*dt/2.0)
+            B = np.sin(h*dt/2.0)
+
+            u1 = np.array([[A-1.0j*B*hz/h,-1.0j*B*(hx-1.0j*hy)/h],[-1j*B*(hx+1.0j*hy)/h,A+1.0j*B*hz/h]])
+            second_step = np.kron(u1,np.conjugate(u1))
+
+
+            return first_step, second_step
+        return propagators
+
+
+
+    def halfstep_propagator_derivative(self,dt):
+        """
+        Returns a function which takes a list of parameters and returns the
+        derivative of the half-step propagator for those parameters.
+        The return is a list r, such that the derivative of the propagator with
+        respect to the ith parameter is r[i].
+        """
+
+        def jacfun(parameters):
+            
+            [hx, hy, hz] = parameters
+            h = np.linalg.norm([hx, hy, hz] )
+            A = np.cos(h*dt/2.0)
+            B = np.sin(h*dt/2.0)
+            
+            hhat = np.array([[hz,hx-1.0j*hy],[hx+1.0j*hy,-hz]]/h)
+            mat1 = (1.0j*B/h**2-1.0j*dt*A/2/h)*hhat-np.eye(2)*dt*B/2/h
+            sx = np.array([[0,1],[1,0]])
+            sy = np.array([[0,-1.0j],[1.0j,0]])
+            sz = np.array([[1,0],[0,-1]])
+
+            u1 = np.eye(2)*A -1.0j*hhat*B
+
+            du1x = mat1*hx-1.0j*sx/h*B
+            dx = np.kron(du1x,np.conjugate(u1))+np.kron(u1,np.conjugate(du1x))
+
+            du1y = mat1*hy-1.0j*sy/h*B
+            dy = np.kron(du1y,np.conjugate(u1))+np.kron(u1,np.conjugate(du1y))
+
+            du1z = mat1*hz-1.0j*sz/h*B
+            dz = np.kron(du1z,np.conjugate(u1))+np.kron(u1,np.conjugate(du1z))
+
+            return [dx, dy, dz]
+        
+        return jacfun
+
+    def get_propagator_derivatives(
+            self,
+            dt: float,
+            parameters: ndarray) -> Callable[[int],Tuple[ndarray,ndarray]]:
+        """
+        ToDo
+        """
+        if self._propagator_derivatives is not None:
+            def propagator_derivatives_a(step: int):
+                pre_params=parameters[2*step]
+                post_params= parameters[2*step+1]
+                pre_prop_derivs = self._propagator_derivatives(dt, pre_params)
+                post_prop_derivs = self._propagator_derivatives(dt, post_params)
+                #      pre_prop_derivs[i] is the derivative of the propagator at
+                #      the first half of time step `step` with respect to the
+                #      ith parameter.
+                return pre_prop_derivs, post_prop_derivs
+            return propagator_derivatives_a
+
+        pd=self.halfstep_propagator_derivative(dt)
+        def propagator_derivatives_b(step: int):
+            pre_params=parameters[2*step]
+            post_params= parameters[2*step+1]
+            pre_prop_derivs=pd(pre_params)
+            post_prop_derivs=pd(post_params)
+            return pre_prop_derivs,post_prop_derivs
+        return propagator_derivatives_b
+
+    @property
+    def number_of_parameters(self) -> Callable[[Tuple], ndarray]:
+        """The system's number of parameters. """
+        return copy(self._number_of_parameters)
+
+    @property
+    def hamiltonian(self) -> Callable[[Tuple], ndarray]:
+        """The system Hamiltonian. """
+        return copy(self._hamiltonian)
+
+    @property
+    def gammas(self) -> List[Callable[[Tuple], float]]:
+        """List of gammas. """
+        return copy(self._gammas)
+
+    @property
+    def lindblad_operators(self) -> List[Callable[[Tuple], ndarray]]:
+        """List of lindblad operators. """
+        return copy(self._lindblad_operators)
 
 class MeanFieldSystem(BaseAPIClass):
     r"""Represents a collection of time dependent systems interacting
