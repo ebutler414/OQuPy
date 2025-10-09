@@ -19,6 +19,7 @@ from functools import lru_cache
 
 import numpy as np
 from scipy import integrate
+from scipy import special
 
 from oqupy.base_api import BaseAPIClass
 from oqupy.config import INTEGRATE_EPSREL, SUBDIV_LIMIT
@@ -590,6 +591,18 @@ class CustomSD(BaseCorrelations):
             integral = integral.real
         return -integral
 
+    def eta_function_analytic(
+            self,
+            tau: ArrayLike,
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT,
+            matsubara: Optional[bool] = False) -> ArrayLike:
+        r""" obtained for ohmic baths with exponential cutoff"""
+        i1 = 2.0*self.alpha*sum([k2*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0]])
+        i2 = -1j*2.0*self.alpha*(np.arctan(self.cutoff*tau)-self.cutoff*tau)
+        
+        return -(i1+i2)
+
     def correlation_2d_integral(
             self,
             delta: float,
@@ -724,7 +737,8 @@ class CustomCountingSD(CustomSD):
         """Create a CustomFunctionSD (spectral density) object. """
         self._u=u
         super().__init__(j_function,cutoff,cutoff_type,temperature,name,description)
-       
+        self.alpha = j_function(0.5)
+
     def correlationA1(
             self,
             tau: ArrayLike,
@@ -1169,7 +1183,101 @@ class CustomCountingSD(CustomSD):
                                      limit=subdiv_limit)[0]
 
         return re_int+1j*im_int     
+        
 
+    def eta_function_marked(
+            self,
+            tau: ArrayLike,
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT,
+            matsubara: Optional[bool] = False,
+            which_corr: Optional[Text] = 'A1' ) -> ArrayLike:
+        r""" obtained for ohmic baths with exponential cutoff"""
+
+
+
+        if (which_corr=='A1'):
+
+            i1 = 0.5*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*(k2+k3)/2*self._u*self.temperature+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] for k4 in [1.0,-1.0]])
+            i2 = -1j*self.alpha*(np.arctan(self.cutoff*tau)+0.5*np.arctan(self.cutoff*(self._u+tau))-0.5*np.arctan(self.cutoff*(self._u-tau)))\
+                +1.0j*self.alpha*self.cutoff*tau*(1.0+1.0/(1+(self._u*self.cutoff)**2))
+        
+        return -(i1+i2)
+    
+    def correlation_2d_integral_marked_eta(
+            self,
+            delta: float,
+            time_1: float,
+            time_2: Optional[float] = None,
+            shape: Optional[Text] = 'square',
+            which_corr: Optional[Text] = 'A1',
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT,
+            matsubara: Optional[bool] = False) -> complex:
+        r"""
+        2D integrals of the correlation function
+
+        .. math::
+
+            \eta_\mathrm{square} =
+            \int_{t_1}^{t_1+\Delta} \int_{0}^{\Delta} C(t'-t'') dt'' dt'
+
+            \eta_\mathrm{upper-triangle} =
+            \int_{t_1}^{t_1+\Delta} \int_{0}^{t'-t_1} C(t'-t'') dt'' dt'
+
+            \eta_\mathrm{rectangle} =
+            \int_{t_1}^{t_2} \int_{0}^{\Delta} C(t'-t'') dt'' dt'
+
+        for `shape` either ``'square'``, ``'upper-triangle'``,
+        or ``'rectangle'``.
+
+        Parameters
+        ----------
+        delta : float
+            Length of integration intervals.
+        time_1 : float
+            Lower bound of integration interval of :math:`dt'`.
+        time_2 : float
+            Upper bound of integration interval of :math:`dt'` for `shape` =
+            ``'rectangle'``.
+        shape : str (default = ``'square'``)
+            The shape of the 2D integral. Shapes are: {``'square'``,
+            ``'upper-triangle'``, ``'rectangle'``}
+        epsrel : float
+            Relative error tolerance.
+        subdiv_limit: int
+            Maximal number of interval subdivisions for numerical integration.
+
+        Returns
+        -------
+        integral : float
+            The numerical value for the two dimensional integral
+            :math:`\eta_\mathrm{shape}`.
+        """
+        kwargs = {
+            'epsrel': epsrel,
+            'subdiv_limit': subdiv_limit,
+            'matsubara': matsubara,
+            'which_corr': which_corr}
+
+        if shape == 'upper-triangle':
+            integral = self.eta_function_marked(time_1 + delta, **kwargs) \
+                       - self.eta_function_marked(time_1, **kwargs)
+        elif shape == 'square':
+            integral = self.eta_function_marked(time_1 + delta, **kwargs) \
+                       - 2.0 * self.eta_function_marked(time_1, **kwargs) \
+                       + self.eta_function_marked(time_1 - delta, **kwargs)
+        elif shape == 'rectangle':
+            integral = self.eta_function_marked(time_2, **kwargs) \
+                       - self.eta_function_marked(time_1, **kwargs) \
+                       - self.eta_function_marked(time_2 - delta, **kwargs) \
+                       + self.eta_function_marked(time_1 - delta, **kwargs)
+        else:
+            raise NotImplementedError("Shape '{shape}' not implemented.")
+
+        if matsubara:
+            integral = integral.real
+        return integral
 
 class PowerLawSD(CustomSD):
     r"""
