@@ -550,6 +550,14 @@ class CustomSD(BaseCorrelations):
         correlation : ndarray
             The auto-correlation function :math:`C(\tau)` at time :math:`\tau`.
         """
+        if self.cutoff_type == 'exponential' and self.zeta == 1: 
+
+            i1 = 2.0*self.alpha*sum([k2*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0]])
+            i2 = -1j*2.0*self.alpha*(np.arctan(self.cutoff*tau)-self.cutoff*tau)
+
+            return -(i1+i2)
+        
+        
         # real and imaginary part of the integrand
         if matsubara:
             tau = -1j * tau
@@ -1185,6 +1193,268 @@ class CustomCountingSD(CustomSD):
         return re_int+1j*im_int     
         
 
+
+class CustomCountingSD_analytical(CustomSD):
+    r"""
+    Correlations corresponding to a custom spectral density, with the counting fields. The resulting
+    spectral density is
+
+    .. math::
+
+        J(\omega) = j(\omega) X(\omega,\omega_c) ,
+
+    with `j_function` :math:`j`, `cutoff` :math:`\omega_c` and a cutoff type
+    :math:`X`.
+
+    If `cutoff_type` is
+
+    - ``'hard'`` then
+      :math:`X(\omega,\omega_c)=\Theta(\omega_c-\omega)`, where
+      :math:`\Theta` is the Heaviside step function.
+    - ``'exponential'`` then
+      :math:`X(\omega,\omega_c)=\exp(-\omega/\omega_c)`.
+    - ``'gaussian'`` then
+      :math:`X(\omega,\omega_c)=\exp(-\omega^2/\omega_c^2)`.
+
+
+    Parameters
+    ----------
+    j_function : callable
+        The spectral density :math:`j` without the cutoff.
+    cutoff : float
+        The cutoff frequency :math:`\omega_c`.
+    u : float
+        The value of the counting field :math: u at which to compute the correlation functions.
+    cutoff_type : str (default = ``'exponential'``)
+        The cutoff type. Types are: {``'hard'``, ``'exponential'``,
+        ``'gaussian'``}
+    temperature: float
+        The environment's temperature.
+    max_correlation_time : float
+        The maximal occuring correlation time :math:`\tau_\mathrm{max}`.
+    name: str
+        An optional name for the correlations.
+    description: str
+        An optional description of the correlations.
+    description_dict: dict
+        An optional dictionary with descriptive data.
+    """
+
+    def __init__(
+            self,
+            j_function: Callable[[float], float],
+            cutoff: float,
+            u: float,
+            cutoff_type: Optional[Text] = 'exponential',
+            temperature: Optional[float] = 0.0,
+            max_correlation_time: Optional[float] = None,
+            name: Optional[Text] = None,
+            description: Optional[Text] = None,
+            description_dict: Optional[Dict] = None) -> None:
+        """Create a CustomFunctionSD (spectral density) object. """
+        self._u=u
+        super().__init__(j_function,cutoff,cutoff_type,temperature,name,description)
+        self.alpha = j_function(0.5)
+
+    def correlationA1(
+            self,
+            tau: ArrayLike,
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT) -> ArrayLike:
+        r"""
+        Counting-field dressed auto-correlation function A1 associated to the spectral density at the
+        given temperature :math:`T`
+
+        .. math::
+
+            A_1(\tau) = \int_0^{\infty} J(\omega) \cos^2(u\omega/2)\
+                       \left[ \cos(\omega \tau) \
+                              \coth\left( \frac{\omega}{2 T}\right) \
+                              - i \sin(\omega \tau) \right] \mathrm{d}\omega .
+
+        with time difference `tau` :math:`\tau`.
+
+        Parameters
+        ----------
+        tau : ndarray
+            Time difference :math:`\tau`
+        epsrel : float (default = 1.49e-08)
+            Relative error tollerance.
+        epsrel : float
+            Relative error tollerance.
+        subdiv_limit: int
+            Maximal number of interval subdivisions for numerical integration.
+
+        Returns
+        -------
+        correlation : ndarray
+            The auto-correlation function :math:`C(\tau)` at time :math:`\tau`.
+        """
+        # real and imaginary part of the integrand
+        if self.temperature == 0.0:
+            re_integrand = lambda w: self._spectral_density(w) * (np.cos(self._u*w/2)**2.0) * np.cos(w*tau)
+        else:
+            re_integrand = lambda w: self._spectral_density(w) * (np.cos(self._u*w/2)**2.0) * np.cos(w*tau) \
+                        / np.tanh(w/(2.0*self.temperature))
+        im_integrand = lambda w: -1.0 * self._spectral_density(w) * (np.cos(self._u*w/2)**2.0) \
+                                      * np.sin(w*tau)
+        # real and imaginary part of the integral
+        re_int = integrate.quad(re_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        im_int = integrate.quad(im_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        if self.cutoff_type != "hard":
+            re_int += integrate.quad(re_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+            im_int += integrate.quad(im_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+        return re_int+1j*im_int
+
+    def correlationA2(
+            self,
+            tau: ArrayLike,
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT) -> ArrayLike:
+        r"""
+        Counting-field dressed auto-correlation function A2 associated to the spectral density at the
+        given temperature :math:`T`
+
+        .. math::
+
+            A_2(\tau) = \int_0^{\infty} J(\omega) \sin^2(u\omega/2)\
+                       \left[ \cos(\omega \tau) \
+                              \coth\left( \frac{\omega}{2 T}\right) \
+                              - i \sin(\omega \tau) \right] \mathrm{d}\omega .
+
+        with time difference `tau` :math:`\tau`.
+
+        Parameters
+        ----------
+        tau : ndarray
+            Time difference :math:`\tau`
+        epsrel : float (default = 1.49e-08)
+            Relative error tollerance.
+        epsrel : float
+            Relative error tollerance.
+        subdiv_limit: int
+            Maximal number of interval subdivisions for numerical integration.
+
+        Returns
+        -------
+        correlation : ndarray
+            The auto-correlation function :math:`C(\tau)` at time :math:`\tau`.
+        """
+        # real and imaginary part of the integrand
+        if self.temperature == 0.0:
+            re_integrand = lambda w: self._spectral_density(w) * (np.sin(self._u*w/2)**2.0) * np.cos(w*tau)
+        else:
+            re_integrand = lambda w: self._spectral_density(w) * (np.sin(self._u*w/2)**2.0) * np.cos(w*tau) \
+                        / np.tanh(w/(2.0*self.temperature))
+        im_integrand = lambda w: -1.0 * self._spectral_density(w) * (np.sin(self._u*w/2)**2.0) \
+                                      * np.sin(w*tau)
+        # real and imaginary part of the integral
+        re_int = integrate.quad(re_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        im_int = integrate.quad(im_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        if self.cutoff_type != "hard":
+            re_int += integrate.quad(re_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+            im_int += integrate.quad(im_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+        return re_int+1j*im_int
+
+    def correlationC(
+            self,
+            tau: ArrayLike,
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT) -> ArrayLike:
+        r"""
+        Counting-field dressed auto-correlation function C associated to the spectral density at the
+        given temperature :math:`T`
+
+        .. math::
+
+            A_1(\tau) = \int_0^{\infty} J(\omega) \cos^2(u\omega/2)\
+                       \left[ \cos(\omega \tau) \
+                              \coth\left( \frac{\omega}{2 T}\right) \
+                              - i \sin(\omega \tau) \right] \mathrm{d}\omega .
+
+        with time difference `tau` :math:`\tau`.
+
+        Parameters
+        ----------
+        tau : ndarray
+            Time difference :math:`\tau`
+        epsrel : float (default = 1.49e-08)
+            Relative error tollerance.
+        epsrel : float
+            Relative error tollerance.
+        subdiv_limit: int
+            Maximal number of interval subdivisions for numerical integration.
+
+        Returns
+        -------
+        correlation : ndarray
+            The auto-correlation function :math:`C(\tau)` at time :math:`\tau`.
+        """
+        # real and imaginary part of the integrand
+        if self.temperature == 0.0:
+            re_integrand = lambda w: -1.0 * self._spectral_density(w) * (np.sin(self._u*w)/2.0) * np.sin(w*tau)
+        else:
+            re_integrand = lambda w: -1.0 * self._spectral_density(w) * (np.sin(self._u*w)/2.0) * np.sin(w*tau) \
+                        / np.tanh(w/(2.0*self.temperature))
+        im_integrand = lambda w: -1.0 * self._spectral_density(w) * (np.sin(self._u*w)/2.0) \
+                                      * np.cos(w*tau)
+        # real and imaginary part of the integral
+        re_int = integrate.quad(re_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        im_int = integrate.quad(im_integrand,
+                                a=0.0,
+                                b=self.cutoff,
+                                epsrel=epsrel,
+                                limit=subdiv_limit)[0]
+        if self.cutoff_type != "hard":
+            re_int += integrate.quad(re_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+            im_int += integrate.quad(im_integrand,
+                                     a=self.cutoff,
+                                     b=np.inf,
+                                     epsrel=epsrel,
+                                     limit=subdiv_limit)[0]
+        return re_int+1j*im_int
+
+    @lru_cache(maxsize=2**10, typed=False)
     def eta_function_marked(
             self,
             tau: ArrayLike,
@@ -1201,10 +1471,26 @@ class CustomCountingSD(CustomSD):
             i1 = 0.5*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*(k2+k3)/2*self._u*self.temperature+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] for k4 in [1.0,-1.0]])
             i2 = -1j*self.alpha*(np.arctan(self.cutoff*tau)+0.5*np.arctan(self.cutoff*(self._u+tau))-0.5*np.arctan(self.cutoff*(self._u-tau)))\
                 +1.0j*self.alpha*self.cutoff*tau*(1.0+1.0/(1+(self._u*self.cutoff)**2))
+            
         
-        return -(i1+i2)
+        elif (which_corr=='A2'):
+
+            i1 = 2.0*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k4 in [1.0,-1.0]]) \
+                    -0.5*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*(k2+k3)/2*self._u*self.temperature+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] for k4 in [1.0,-1.0]]) 
+            i2 = -2j*self.alpha*np.arctan(self.cutoff*tau)+2.0j*self.alpha*self.cutoff*tau \
+                    +1j*self.alpha*(np.arctan(self.cutoff*tau)+0.5*np.arctan(self.cutoff*(self._u+tau))-0.5*np.arctan(self.cutoff*(self._u-tau)))\
+                    -1.0j*self.alpha*self.cutoff*tau*(1.0+1.0/(1+(self._u*self.cutoff)**2))
+            
+        elif (which_corr=='C'):
+
+            i1 = -self.alpha/2*sum([k2*k3*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*(self._u-k3*tau)*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] ])
+            i2 = -self.alpha*self.temperature*tau*sum([np.imag( special.digamma(self.temperature/self.cutoff+(k1+1.0)/2-1.0j*self._u*self.temperature) ) for k1 in [1.0,-1.0]])
+            i2 += -1j*self.alpha/2*(np.arctan(self.cutoff*(tau+self._u))-np.arctan(self.cutoff*(tau-self._u))-2.0*np.arctan(self._u*self.cutoff))
+
+
+        return -i1-i2
     
-    def correlation_2d_integral_marked_eta(
+    def correlation_2d_integral_marked(
             self,
             delta: float,
             time_1: float,
