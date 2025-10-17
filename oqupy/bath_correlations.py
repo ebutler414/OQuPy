@@ -19,6 +19,7 @@ from functools import lru_cache
 
 import numpy as np
 from scipy import integrate
+from scipy import special
 
 from oqupy.base_api import BaseAPIClass
 from oqupy.config import INTEGRATE_EPSREL, SUBDIV_LIMIT
@@ -549,6 +550,20 @@ class CustomSD(BaseCorrelations):
         correlation : ndarray
             The auto-correlation function :math:`C(\tau)` at time :math:`\tau`.
         """
+        if self.cutoff_type == 'exponential' and self.zeta == 1: 
+            
+            if self.temperature == 0.0:
+
+                i1 = -2.0*self.alpha*np.log(1.0j*self.cutoff*tau+1.0)
+                i2 = 2.0*self.alpha*1j*tau*self.cutoff
+
+            else:
+
+                i1 = 2.0*self.alpha*sum([k2*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0]])
+                i2 = -1j*2.0*self.alpha*(np.arctan(self.cutoff*tau)-self.cutoff*tau)
+
+            return -(i1+i2)
+        
         # real and imaginary part of the integrand
         if matsubara:
             tau = -1j * tau
