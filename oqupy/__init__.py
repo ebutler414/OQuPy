@@ -137,6 +137,7 @@ from oqupy.system import TimeDependentSystem
 from oqupy.system import TimeDependentSystemWithField
 from oqupy.system import MeanFieldSystem
 from oqupy.system import ParameterizedSystem
+from oqupy.system import ParameterizedSystem2ls
 
 from oqupy.pt_tempo import PtTempo
 from oqupy.pt_tempo import pt_tempo_compute

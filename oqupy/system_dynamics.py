@@ -27,7 +27,7 @@ from oqupy.control import Control
 from oqupy.dynamics import Dynamics, MeanFieldDynamics
 from oqupy.process_tensor import BaseProcessTensor
 from oqupy.system import BaseSystem, System, TimeDependentSystem
-from oqupy.system import ParameterizedSystem
+from oqupy.system import ParameterizedSystem,ParameterizedSystem2ls
 from oqupy.system import MeanFieldSystem
 from oqupy.operators import left_super, right_super
 from oqupy.util import check_convert, check_isinstance, check_true
@@ -484,7 +484,7 @@ def _compute_dynamics_input_parse(
     else:
         check_isinstance(
             system,
-            (System, TimeDependentSystem, ParameterizedSystem),
+            (System, TimeDependentSystem, ParameterizedSystem,ParameterizedSystem2ls),
             "system"
         )
 
