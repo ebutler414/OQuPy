@@ -75,6 +75,7 @@ __all__ = [
     'MeanFieldTempo',
     'operators',
     'ParameterizedSystem',
+    'ParameterizedSystem2ls',
     'PowerLawSD',
     'PtTebd',
     'PtTebdParameters',
@@ -137,6 +138,7 @@ from oqupy.system import TimeDependentSystem
 from oqupy.system import TimeDependentSystemWithField
 from oqupy.system import MeanFieldSystem
 from oqupy.system import ParameterizedSystem
+from oqupy.system import ParameterizedSystem2ls
 
 from oqupy.pt_tempo import PtTempo
 from oqupy.pt_tempo import pt_tempo_compute
