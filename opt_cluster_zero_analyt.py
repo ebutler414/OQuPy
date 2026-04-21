@@ -28,7 +28,7 @@ tprot=int(args.param[3]) # protocol time
 print(f'Running optimization with protocol time: {args.param} ps')
 
 pt_parameters = {'epsrel':epsrel,
-                 'alpha':0.05,
+                 'alpha':0.1,
                  'omega_cutoff':1,                 
                  'temp':0.131,
                  'dt':dt,
@@ -66,13 +66,10 @@ bathcf = oqupy.Bath(op.sigma("z")/2.0, correlationscf)
 
 # load pre-computed process tensors
 
-
-with open('results/processtensors_lowercoupling/processtensor_dt={0}_ps=-{1}_tcut={2}_alpha=0.05'.format(dt,epsrel_pow,tcut), 'rb') as f:
-
+with open('results/processtensors/processtensor_dt={0}_ps=-{1}_tcut={2}'.format(dt,epsrel_pow,tcut), 'rb') as f:
     processtensor = dill.load(f)
 
-with open('results/processtensors_lowercoupling/processtensorCF_dt={0}_ps=-{1}_tcut={2}_alpha=0.05'.format(dt,epsrel_pow,tcut), 'rb') as f:
-
+with open('results/processtensors/processtensorcf_dt={0}_ps=-{1}_tcut={2}'.format(dt,epsrel_pow,tcut), 'rb') as f:
     processtensorcf = dill.load(f)
 
 # for ParameterisedSystem2ls (NEED 3 PARAMS + no factors of 1/2)
@@ -128,12 +125,6 @@ def heatandgrad(paras,process_tensor,num_steps):
         
     gps=gps[0::2]
 
-    x=[]
-    for i in range(0,gps.shape[1]): 
-        x.append(gps[:,i])
-    
-    gps=np.array(x)
-
     # Return the minus the gradient as infidelity is being minimized 
     return heat,(1.0*gps.reshape((-1)).real).tolist()
 
@@ -145,35 +136,56 @@ min_heats=[]
 opt_runtimes=[
 ]
 
-'''
-file_name1='results/zero_control/{0}ps/optimization_simplemodel_{0}ps'.format(tprot)
-with open(file_name1,'rb') as f:
-        control_dict=dill.load(f)
-'''
+from scipy.optimize import check_grad
+
+with open('results/zero_control/{0}ps/optimization_simplemodel_{0}ps'.format(tprot), 'rb') as f:
+    opt_dict = dill.load(f)
 
 for t_prot in [tprot]:
     num_steps=int(t_prot/processtensor.dt)
-    hx=np.ones(num_steps)*0.05
+    hx=-np.ones(num_steps)*0.00000005
     hy=np.zeros(num_steps)
     hz=np.zeros(num_steps)
-    #hx=control_dict['result'].x
+
+        # Set upper and lower bounds on control parameters
+    x_bound = [-5,5]
+    y_bound = [0,0] 
+    z_bound = [0,0]
+
+    bounds = np.zeros((num_steps*num_params,2))
+
+    for i in range(0, num_params*num_steps,num_params):
+            bounds[i] = x_bound
+            bounds[i+1] = y_bound
+            bounds[i+2] = z_bound
+        
     parameter_list=[item for pair in zip(hx,hy,hz) for item in pair]
     start = time.time()
     
+    """
+    def grad(z):
+        return heatandgrad(z,processtensorcf,num_steps)[1]
+    
+    def func(z):
+        return heatandgrad(z,processtensorcf,num_steps)[0]
+    
+    print(check_grad(func, grad, parameter_list))
+    """
     optimization_result = minimize(
                             fun=heatandgrad,
                             x0=parameter_list,
                             args=(processtensorcf,num_steps),
                             method='l-bfgs-b',
                             jac=True,
-                            options = {'disp':True, 'gtol': 7e-04}
+                            bounds=bounds,
+                            options = {'disp':True, 'gtol': 1e-10}
     )
     end = time.time()
     opt_runtimes.append(end-start)
 
     print("The minimal heat was found to be : ",optimization_result.fun)
 
-    print("The Jacobian was found to be : ",optimization_result.jac)
+    #print("The Jacobian was found to be : ",optimization_result.jac) (jac removed from scipy?)
 
 opt_parameters = reshapedparas = [i for i in (optimization_result.x.reshape((-1,num_params))).tolist() for j in range(2)]
 opt_parameters=np.array(opt_parameters)
@@ -187,10 +199,10 @@ grad_res_opt = oqupy.state_gradient(
     parameters=opt_parameters,
     progress_type='silent')
 
-folder="results/zero_control_lowercoupling/"
+folder='results/zero_control/{0}ps/optimization_simplemodel_{0}ps_lowerbound4_param'
 os.makedirs(folder,exist_ok=True)
 
-subfolder = os.path.join(folder, 'dt={0}_ps={1}_tcut={2}_alpha=0.05_nonzero'.format(dt, np.round(np.log10(epsrel), 1), tcut))
+subfolder = os.path.join(folder, 'dt={0}_ps={1}_tcut={2}'.format(dt, np.round(np.log10(epsrel), 1), tcut))
 os.makedirs(subfolder, exist_ok=True)
 
 file_name1 = os.path.join(subfolder, '{0}ps'.format(tprot))

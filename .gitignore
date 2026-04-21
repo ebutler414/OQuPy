@@ -149,3 +149,7 @@ examples/*.pdf
 
 #
 results/
+
+gitkey
+
+results_paper/

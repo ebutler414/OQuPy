@@ -68,7 +68,6 @@ bathcf = oqupy.Bath(op.sigma("z")/2.0, correlationscf)
 
 
 with open('results/processtensors_lowercoupling/processtensor_dt={0}_ps=-{1}_tcut={2}_alpha=0.05'.format(dt,epsrel_pow,tcut), 'rb') as f:
-
     processtensor = dill.load(f)
 
 with open('results/processtensors_lowercoupling/processtensorCF_dt={0}_ps=-{1}_tcut={2}_alpha=0.05'.format(dt,epsrel_pow,tcut), 'rb') as f:
@@ -126,12 +125,6 @@ def heatandgrad(paras,process_tensor,num_steps):
         gps[i,:]=gps[i,:]+gps[i+1,:]
         
     gps=gps[0::2]
-
-    x=[]
-    for i in range(0,gps.shape[1]): 
-        x.append(gps[:,i])
-    
-    gps=np.array(x)
 
     # Return the minus the gradient as infidelity is being minimized 
     return heat,(1.0*gps.reshape((-1)).real).tolist()

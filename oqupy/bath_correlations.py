@@ -550,13 +550,15 @@ class CustomSD(BaseCorrelations):
         correlation : ndarray
             The auto-correlation function :math:`C(\tau)` at time :math:`\tau`.
         """
+
+
         if self.cutoff_type == 'exponential' and self.zeta == 1: 
 
             i1 = 2.0*self.alpha*sum([k2*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0]])
             i2 = -1j*2.0*self.alpha*(np.arctan(self.cutoff*tau)-self.cutoff*tau)
 
             return -(i1+i2)
-        
+
         
         # real and imaginary part of the integrand
         if matsubara:
@@ -1245,6 +1247,7 @@ class CustomCountingSD_analytical(CustomSD):
             j_function: Callable[[float], float],
             cutoff: float,
             u: float,
+            zeta: Optional[float]=1,
             cutoff_type: Optional[Text] = 'exponential',
             temperature: Optional[float] = 0.0,
             max_correlation_time: Optional[float] = None,
@@ -1253,6 +1256,7 @@ class CustomCountingSD_analytical(CustomSD):
             description_dict: Optional[Dict] = None) -> None:
         """Create a CustomFunctionSD (spectral density) object. """
         self._u=u
+        self.zeta=zeta
         super().__init__(j_function,cutoff,cutoff_type,temperature,name,description)
         self.alpha = j_function(0.5)
 
@@ -1464,26 +1468,30 @@ class CustomCountingSD_analytical(CustomSD):
             which_corr: Optional[Text] = 'A1' ) -> ArrayLike:
         r""" obtained for ohmic baths with exponential cutoff"""
 
-
-
+        # only real part changed at zero/finite temp
         if (which_corr=='A1'):
-
-            i1 = 0.5*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*(k2+k3)/2*self._u*self.temperature+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] for k4 in [1.0,-1.0]])
+            if self.temperature == 0.0: 
+                i1 = (self.alpha/4.0)*(2*np.log(1 + (self.cutoff*tau)**2)+ np.log(1 + (self.cutoff*(tau+self._u))**2)+ np.log(1 + (self.cutoff*(tau-self._u))**2) - 2*np.log(1 + (self.cutoff*self._u)**2))
+            else:
+                i1 = 0.5*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*(k2+k3)/2*self._u*self.temperature+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] for k4 in [1.0,-1.0]])
             i2 = -1j*self.alpha*(np.arctan(self.cutoff*tau)+0.5*np.arctan(self.cutoff*(self._u+tau))-0.5*np.arctan(self.cutoff*(self._u-tau)))\
                 +1.0j*self.alpha*self.cutoff*tau*(1.0+1.0/(1+(self._u*self.cutoff)**2))
-            
         
         elif (which_corr=='A2'):
-
-            i1 = 2.0*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k4 in [1.0,-1.0]]) \
+            if self.temperature == 0.0:
+                i1= -(self.alpha/4.0) * (np.log(1+(self.cutoff*(tau-self._u))**2)-2*np.log((1+(self.cutoff*tau)**2)*(1+(self.cutoff*self._u)**2)) + np.log(1+(self.cutoff*(tau+self._u))**2))
+            else:
+                i1 = 2.0*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k4 in [1.0,-1.0]]) \
                     -0.5*self.alpha*sum([k4*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*(k2+k3)/2*self._u*self.temperature+1j*self.temperature*tau*(k4+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] for k4 in [1.0,-1.0]]) 
             i2 = -2j*self.alpha*np.arctan(self.cutoff*tau)+2.0j*self.alpha*self.cutoff*tau \
                     +1j*self.alpha*(np.arctan(self.cutoff*tau)+0.5*np.arctan(self.cutoff*(self._u+tau))-0.5*np.arctan(self.cutoff*(self._u-tau)))\
                     -1.0j*self.alpha*self.cutoff*tau*(1.0+1.0/(1+(self._u*self.cutoff)**2))
             
         elif (which_corr=='C'):
-
-            i1 = -self.alpha/2*sum([k2*k3*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*(self._u-k3*tau)*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] ])
+            if self.temperature == 0.0:
+                i1= (self.alpha/2.0) * (-(2*tau*self._u*self.cutoff**2)/(1+(self._u*self.cutoff)**2) + np.arctanh(2*tau*self._u*self.cutoff**2/(1+(tau**2+self._u**2)*self.cutoff**2)))
+            else:
+                i1 = -self.alpha/2*sum([k2*k3*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*(self._u-k3*tau)*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0] for k3 in [1.0,-1.0] ])
             i2 = -self.alpha*self.temperature*tau*sum([np.imag( special.digamma(self.temperature/self.cutoff+(k1+1.0)/2-1.0j*self._u*self.temperature) ) for k1 in [1.0,-1.0]])
             i2 += -1j*self.alpha/2*(np.arctan(self.cutoff*(tau+self._u))-np.arctan(self.cutoff*(tau-self._u))-2.0*np.arctan(self._u*self.cutoff))
 
@@ -1564,6 +1572,7 @@ class CustomCountingSD_analytical(CustomSD):
         if matsubara:
             integral = integral.real
         return integral
+    
 
 class PowerLawSD(CustomSD):
     r"""

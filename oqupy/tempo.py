@@ -37,7 +37,7 @@ from oqupy.base_api import BaseAPIClass
 from oqupy.config import MAX_DKMAX, DEFAULT_TOLERANCE, MAX_SYS_SAMPLES
 from oqupy.config import INTEGRATE_EPSREL, SUBDIV_LIMIT
 from oqupy.config import TEMPO_BACKEND_CONFIG
-from oqupy.bath_correlations import BaseCorrelations, CustomSD
+from oqupy.bath_correlations import BaseCorrelations, CustomSD, CustomCountingSD_analytical,CustomCountingSD, PowerLawSD
 from oqupy.dynamics import Dynamics, MeanFieldDynamics
 from oqupy.system import BaseSystem, System, TimeDependentSystem,\
     TimeDependentSystemWithField, MeanFieldSystem
@@ -311,6 +311,7 @@ class Tempo(BaseAPIClass):
             parameters: TempoParameters,
             initial_state: ndarray,
             start_time: float,
+            alpha_t : ndarray,
             unique: Optional[bool] = False,
             backend_config: Optional[Dict] = None,
             name: Optional[Text] = None,
@@ -329,6 +330,8 @@ class Tempo(BaseAPIClass):
         assert isinstance(parameters, TempoParameters), \
             "Argument 'parameters' must be an instance of TempoParameters."
         self._parameters = parameters
+
+        self._alpha_t = alpha_t
 
         try:
             tmp_start_time = float(start_time)
@@ -371,13 +374,22 @@ class Tempo(BaseAPIClass):
         else:
             tmp_deg_positions = None
 
-        return influence_matrix(
-            dk,
-            parameters=self._parameters,
-            correlations=self._correlations,
-            coupling_acomm=self._bath.coupling_acomm,
-            coupling_comm=self._bath.coupling_comm,
-            deg_positions=tmp_deg_positions)
+        if isinstance(self._correlations,(CustomCountingSD, CustomCountingSD_analytical)):
+            return influence_matrix_marked(
+                dk,
+                parameters=self._parameters,
+                correlations=self._correlations,
+                coupling_acomm=self._bath.coupling_acomm,
+                coupling_comm=self._bath.coupling_comm,
+                deg_positions=tmp_deg_positions)
+        else:
+            return influence_matrix(
+                dk,
+                parameters=self._parameters,
+                correlations=self._correlations,
+                coupling_acomm=self._bath.coupling_acomm,
+                coupling_comm=self._bath.coupling_comm,
+                deg_positions=tmp_deg_positions)
 
     def _time(self, step: int) -> float:
         """Return the time that corresponds to the time step `step`. """
@@ -421,6 +433,7 @@ class Tempo(BaseAPIClass):
             degeneracy_maps = None
         dkmax = self._parameters.dkmax
         epsrel = self._parameters.epsrel
+        alpha_t = self._alpha_t
         self._backend_instance = TempoBackend(
                 initial_state,
                 influence,
@@ -430,6 +443,7 @@ class Tempo(BaseAPIClass):
                 sum_west,
                 dkmax,
                 epsrel,
+                alpha_t,
                 config=self._backend_config,
                 degeneracy_maps=degeneracy_maps,
                 dim=dim)
@@ -969,7 +983,7 @@ def _check_time(end_time):
 def influence_matrix(
         dk: int,
         parameters: TempoParameters,
-        correlations: BaseCorrelations,
+        correlations:Union[ BaseCorrelations, CustomSD, PowerLawSD],
         coupling_acomm: ndarray,
         coupling_comm: ndarray,
         deg_positions: Optional[List[ndarray]] = None):
@@ -1017,6 +1031,65 @@ def influence_matrix(
             north_deg_positions, west_deg_positions = deg_positions
             infl=(infl[north_deg_positions].T)[west_deg_positions].T
 
+    return infl
+
+def influence_matrix_marked(
+        dk: int,
+        parameters: TempoParameters,
+        correlations: Union[CustomCountingSD_analytical,CustomCountingSD],
+        coupling_acomm: ndarray,
+        coupling_comm: ndarray,
+        deg_positions: Optional[List[ndarray]] = None):
+    """Compute the influence functional matrix. """
+    dt = parameters.dt
+    dkmax = parameters.dkmax
+
+    if dk == 0:
+            time_1 = 0.0
+            time_2 = None
+            shape = "upper-triangle"
+    elif dk < 0:
+        time_1 = float(dkmax) * dt
+        if parameters.add_correlation_time is not None:
+                time_2 = float(dkmax) * dt \
+                    + np.min([float(-dk) * dt,
+                                1.0*dt + parameters.add_correlation_time])
+        else:
+            return None
+        shape = "rectangle"
+    else:
+        time_1 = float(dk) * dt
+        time_2 = None
+        shape = "square"
+
+    etaA1_dk = correlations.correlation_2d_integral_marked( \
+        delta=dt,
+        time_1=time_1,
+        time_2=time_2,
+        shape=shape,
+        which_corr='A1',
+        epsrel=parameters.epsrel)
+    etaA2_dk = correlations.correlation_2d_integral_marked( \
+        delta=dt,
+        time_1=time_1,
+        time_2=time_2,
+        shape=shape,
+        which_corr='A2',
+        epsrel=parameters.epsrel)
+    etaC_dk = correlations.correlation_2d_integral_marked( \
+        delta=dt,
+        time_1=time_1,
+        time_2=time_2,
+        shape=shape,
+        which_corr='C',
+        epsrel=parameters.epsrel)  
+    op_p = coupling_acomm
+    op_m = coupling_comm
+
+    if dk == 0:
+            infl = np.diag(np.exp((op_m*((etaC_dk.real-1j*etaA1_dk.imag)*op_p+(1j*etaC_dk.imag-etaA1_dk.real)*op_m)-op_p*((etaC_dk.real+1j*etaA2_dk.imag)*op_m+(etaA2_dk.real+1j*etaC_dk.imag)*op_p))))
+    else:
+            infl = np.exp(np.outer(etaC_dk.real*op_p-1j*etaA1_dk.imag*op_p+1j*etaC_dk.imag*op_m-etaA1_dk.real*op_m,op_m)-np.outer(etaA2_dk.real*op_p+1j*etaC_dk.imag*op_p+etaC_dk.real*op_m+1j*etaA2_dk.imag*op_m,op_p))
     return infl
 
 GUESS_WARNING_MSG = "Estimating TEMPO parameters. " \
@@ -1145,6 +1218,7 @@ def tempo_compute(
         initial_state: ndarray,
         start_time: float,
         end_time: float,
+        alpha_t : ndarray,
         parameters: Optional[TempoParameters] = None,
         tolerance: Optional[float] = DEFAULT_TOLERANCE,
         unique: Optional[bool] = False,
@@ -1201,6 +1275,7 @@ def tempo_compute(
                   parameters,
                   initial_state,
                   start_time,
+                  alpha_t,
                   unique,
                   backend_config,
                   name,

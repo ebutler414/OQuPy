@@ -349,7 +349,7 @@ class BaseTempoBackend:
             sum_west: ndarray,
             dkmax: int,
             epsrel: float,
-            alpha_t : ndarray,
+            alpha_t: ndarray,
             config: Optional[Dict] = None,
             degeneracy_maps: Optional[List[ndarray]] = None,
             dim: Optional[int] = None):
@@ -516,13 +516,16 @@ class BaseTempoBackend:
                               mpo,
                               name="Thee Time Evolving MPO",
                               copy=False)
-                
+
+        # --- modification to algorithm for time depend coupling
+
         tensors = [nodes.get_tensor() for nodes in mpo.nodes] 
 
         exponents = [np.sqrt(self._alpha_t[current_step-1]*self._alpha_t[k2]) for k2 in range(0,current_step)]
-        exponents_cut = exponents[:np.shape(tensors)[0]]
+        exponents_cut = exponents[-np.shape(tensors)[0]:]
 
         [node.set_tensor(tensor**exponent) for node,tensor,exponent in zip(mpo.nodes, tensors, exponents_cut)]
+        
 
         mpo.name = "temporary MPO"
         mpo.apply_vector(self._sum_west, left=True)
