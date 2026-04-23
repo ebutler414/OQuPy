@@ -277,7 +277,7 @@ class PtTempoBackend:
         for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
             node.set_tensor(tensor ** exponent)
 
-        mpo = self._mpo.copy()
+        #mpo = self._mpo.copy()
 
         self._mps.zip_up(mpo,
                          axes=[(0,0)],
