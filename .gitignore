@@ -1,3 +1,4 @@
+.DS_Store
 # TEMPO file formats
 tests/data/temp/
 tests/data/performance_results/

@@ -123,6 +123,8 @@ class PtTempoBackend:
         for i in range(self._num_infl):
             if i == 0:
                 infl = self._influence(i)
+                if alpha_t is not None:
+                    infl = infl ** (alpha_t[0])
                 infl = infl / scale
                 if self._degeneracy_maps is not None:
                     tmp_mpo = zeros((tmp_west_deg_num_vals,
@@ -145,11 +147,15 @@ class PtTempoBackend:
                     infl_mps = infl.T / scale
             elif i == self._num_infl-1:
                 infl = self._influence(i)
+                if alpha_t is not None:
+                    infl = infl ** (np.sqrt(alpha_t[0]*alpha_t[i]))
                 infl_mpo = util.add_singleton(infl, 1)
                 infl_mpo = util.add_singleton(infl_mpo, 3)
                 infl_mps = util.add_singleton(infl, 2)
             else:
                 infl = self._influence(i)
+                if alpha_t is not None:
+                    infl = infl ** (np.sqrt(alpha_t[0]*alpha_t[i]))
                 infl_mpo = util.create_delta(infl, [0, 1, 1, 0])
                 infl_mps = util.create_delta(infl / scale, [0, 1, 0])
 
