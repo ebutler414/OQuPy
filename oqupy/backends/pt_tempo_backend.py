@@ -124,6 +124,7 @@ class PtTempoBackend:
             if i == 0:
                 infl = self._influence(i)
                 infl = infl / scale
+                mps_scale_power=2
                 if self._degeneracy_maps is not None:
                     tmp_mpo = zeros((tmp_west_deg_num_vals,
                                      self._dimension**2,
@@ -148,10 +149,20 @@ class PtTempoBackend:
                 infl_mpo = util.add_singleton(infl, 1)
                 infl_mpo = util.add_singleton(infl_mpo, 3)
                 infl_mps = util.add_singleton(infl, 2)
+                mps_scale_power=0
             else:
                 infl = self._influence(i)
                 infl_mpo = util.create_delta(infl, [0, 1, 1, 0])
                 infl_mps = util.create_delta(infl / scale, [0, 1, 0])
+                mps_scale_power=1
+
+            # time-dependent coupling modification
+            # by scaling I blocks according to relevant exponent
+            # but correct so we do not scale the 'scale' factor above
+            if self._alpha_t is not None:
+                exponent = np.sqrt(self._alpha_t[0]*self._alpha_t[i])
+                infl_mps=infl_mps ** exponent
+                infl_mps=infl_mps * scale ** (mps_scale_power*exponent-1.0)
 
             influences_mpo.append(infl_mpo)
             influences_mps.append(infl_mps)
