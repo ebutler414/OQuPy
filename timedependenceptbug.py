@@ -58,11 +58,13 @@ smv=np.vectorize(smswitch)
 alpharamp=smv(times)
 
 # %%
+#alpharamp=np.ones(len(times))
 pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
                              start_time=0,
                              end_time=tf,
                              parameters=parameters,
                              alpha_t=alpharamp)
+
 
 # %%
 splitting=1.0
@@ -74,15 +76,35 @@ dynamicspttestswitch=oqupy.compute_dynamics(
     initial_state=rhoini,
     start_time=0)
 
+
 # %%
 
+states=dynamicspttestswitch.states
+states=states/(states[0].trace())
+dynamicspttestswitch._states=states
 t2,sx2=dynamicspttestswitch.expectations(op.sigma('x'),real=True)
+#t3,sx3=dynamicspttestswitch2.expectations(op.sigma('x'),real=True)
+
+
+tempores=oqupy.tempo_compute(system=system,
+                             bath=bath,
+                             initial_state=rhoini,
+                             start_time=0.0,
+                             end_time=tf,
+                             alpha_t=alpharamp,
+                             parameters=parameters)
+
+t3,sx3=tempores.expectations(op.sigma('x'),real=True)
 
 fig,ax=plt.subplots(1)
 #ax.plot(t,sx,'o')
-ax.plot(t2,sx2)
+ax.plot(t2,sx2,label='first go')
+ax.plot(t3,sx3,label='second go')
 #ax2=ax.twinx()
 #ax2.plot(t,alpha_tramp)
+ax.legend()
 plt.show()
 
 
+
+# %%

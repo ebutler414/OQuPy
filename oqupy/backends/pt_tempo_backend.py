@@ -162,7 +162,7 @@ class PtTempoBackend:
             if self._alpha_t is not None:
                 exponent = np.sqrt(self._alpha_t[0]*self._alpha_t[i])
                 infl_mps=infl_mps ** exponent
-                infl_mps=infl_mps * scale ** (mps_scale_power*exponent-1.0)
+                #infl_mps=infl_mps * (scale ** (mps_scale_power*(exponent-1.0)))
 
             influences_mpo.append(infl_mpo)
             influences_mps.append(infl_mps)
@@ -285,8 +285,14 @@ class PtTempoBackend:
             for k2 in range(k1, len(tensors)+k1)
         ]
 
+        
         for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
             node.set_tensor(tensor ** exponent)
+
+        # first_in_mpo=mpo.nodes[0].get_tensor()
+
+        # scale=self._dimension
+        # mpo.nodes[0].set_tensor(first_in_mpo*(scale**(exponents_cut[0]-1)))        
 
         #mpo = self._mpo.copy()
 
