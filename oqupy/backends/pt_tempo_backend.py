@@ -235,6 +235,7 @@ class PtTempoBackend:
                 self._mps will be a contraction of A, B, n
                 self._mpo will be one element shorter
         """
+        k1=self._step
         self._step += 1
 
         end_phase = bool(self._step > self._num_steps - self._num_infl + 1)
@@ -244,6 +245,10 @@ class PtTempoBackend:
                                     index=-1,
                                     copy=False,
                                     name_left="Shortened MPO")
+            k2=k1+len(self._mpo.nodes)-1
+            last=self._mpo.nodes[-1].get_tensor()
+            exponent=np.sqrt(self._alpha_t[k1]*self._alpha_t[k2])
+            self._mpo.nodes[-1].set_tensor(last ** exponent)
             self._mpo.apply_vector(self._sum_north_scaled, left=False)
             if self._mps.right:
                 self._mps.apply_vector(np.array([1.0]), left=False)
@@ -278,16 +283,24 @@ class PtTempoBackend:
 
         tensors = [node.get_tensor() for node in mpo.nodes]
 
-        k1 = self._step - 1
+        #k1 = self._step - 1
+
 
         exponents_cut = [
-            np.sqrt(self._alpha_t[k1] * self._alpha_t[k2])
-            for k2 in range(k1, len(tensors)+k1)
-        ]
-
+                np.sqrt(self._alpha_t[k1] * self._alpha_t[k2])
+                for k2 in range(k1, len(tensors)+k1)
+                ]
         
-        for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
-            node.set_tensor(tensor ** exponent)
+        if end_phase:
+            k3=len(tensors)-1
+        else:
+            k3=len(tensors)
+
+        for k4 in range(k3):
+            mpo.nodes[k4].set_tensor(tensors[k4] ** exponents_cut[k4])
+
+        #for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
+        #    node.set_tensor(tensor ** exponent)
 
         # first_in_mpo=mpo.nodes[0].get_tensor()
 

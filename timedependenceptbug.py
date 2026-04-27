@@ -41,7 +41,7 @@ correlations = oqupy.PowerLawSD(alpha=alpha,
                                 cutoff_type='exponential',
                                 temperature=temperature)
 bath = oqupy.Bath(op.sigma("z")/2.0, correlations)
-parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel)
+parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel,dkmax=None)
 
 # %%
 # smooth switching function
@@ -58,7 +58,7 @@ smv=np.vectorize(smswitch)
 alpharamp=smv(times)
 
 # %%
-#alpharamp=np.ones(len(times))
+alpharamp=0.3*np.ones(len(times))
 pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
                              start_time=0,
                              end_time=tf,
@@ -80,26 +80,30 @@ dynamicspttestswitch=oqupy.compute_dynamics(
 # %%
 
 states=dynamicspttestswitch.states
-states=states/(states[0].trace())
+rescale=True
+if rescale:
+    states=states/(states[0].trace())
 dynamicspttestswitch._states=states
 t2,sx2=dynamicspttestswitch.expectations(op.sigma('x'),real=True)
 #t3,sx3=dynamicspttestswitch2.expectations(op.sigma('x'),real=True)
 
+runtempo=True
+if runtempo:
+    tempores=oqupy.tempo_compute(system=system,
+                                bath=bath,
+                                initial_state=rhoini,
+                                start_time=0.0,
+                                end_time=tf,
+                                alpha_t=alpharamp,
+                                parameters=parameters)
 
-tempores=oqupy.tempo_compute(system=system,
-                             bath=bath,
-                             initial_state=rhoini,
-                             start_time=0.0,
-                             end_time=tf,
-                             alpha_t=alpharamp,
-                             parameters=parameters)
-
-t3,sx3=tempores.expectations(op.sigma('x'),real=True)
+    t3,sx3=tempores.expectations(op.sigma('x'),real=True)
 
 fig,ax=plt.subplots(1)
 #ax.plot(t,sx,'o')
-ax.plot(t2,sx2,label='first go')
-ax.plot(t3,sx3,label='second go')
+ax.plot(t2,sx2,label='PT-TEMPO')
+if runtempo:
+    ax.plot(t3,sx3,label='TEMPO')
 #ax2=ax.twinx()
 #ax2.plot(t,alpha_tramp)
 ax.legend()
