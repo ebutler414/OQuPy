@@ -124,7 +124,6 @@ class PtTempoBackend:
             if i == 0:
                 infl = self._influence(i)
                 infl = infl / scale
-                mps_scale_power=2
                 if self._degeneracy_maps is not None:
                     tmp_mpo = zeros((tmp_west_deg_num_vals,
                                      self._dimension**2,
@@ -149,20 +148,10 @@ class PtTempoBackend:
                 infl_mpo = util.add_singleton(infl, 1)
                 infl_mpo = util.add_singleton(infl_mpo, 3)
                 infl_mps = util.add_singleton(infl, 2)
-                mps_scale_power=0
             else:
                 infl = self._influence(i)
                 infl_mpo = util.create_delta(infl, [0, 1, 1, 0])
                 infl_mps = util.create_delta(infl / scale, [0, 1, 0])
-                mps_scale_power=1
-
-            # time-dependent coupling modification
-            # by scaling I blocks according to relevant exponent
-            # but correct so we do not scale the 'scale' factor above
-            if self._alpha_t is not None:
-                exponent = np.sqrt(self._alpha_t[0]*self._alpha_t[i])
-                infl_mps=infl_mps ** exponent
-                #infl_mps=infl_mps * (scale ** (mps_scale_power*(exponent-1.0)))
 
             influences_mpo.append(infl_mpo)
             influences_mps.append(infl_mps)
@@ -235,7 +224,6 @@ class PtTempoBackend:
                 self._mps will be a contraction of A, B, n
                 self._mpo will be one element shorter
         """
-        k1=self._step
         self._step += 1
 
         end_phase = bool(self._step > self._num_steps - self._num_infl + 1)
@@ -245,10 +233,6 @@ class PtTempoBackend:
                                     index=-1,
                                     copy=False,
                                     name_left="Shortened MPO")
-            k2=k1+len(self._mpo.nodes)-1
-            last=self._mpo.nodes[-1].get_tensor()
-            exponent=np.sqrt(self._alpha_t[k1]*self._alpha_t[k2])
-            self._mpo.nodes[-1].set_tensor(last ** exponent)
             self._mpo.apply_vector(self._sum_north_scaled, left=False)
             if self._mps.right:
                 self._mps.apply_vector(np.array([1.0]), left=False)
@@ -283,29 +267,10 @@ class PtTempoBackend:
 
         tensors = [node.get_tensor() for node in mpo.nodes]
 
-        #k1 = self._step - 1
+        k1 = self._step - 1
 
-
-        exponents_cut = [
-                np.sqrt(self._alpha_t[k1] * self._alpha_t[k2])
-                for k2 in range(k1, len(tensors)+k1)
-                ]
-        
-        if end_phase:
-            k3=len(tensors)-1
-        else:
-            k3=len(tensors)
-
-        for k4 in range(k3):
-            mpo.nodes[k4].set_tensor(tensors[k4] ** exponents_cut[k4])
-
-        #for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
-        #    node.set_tensor(tensor ** exponent)
-
-        # first_in_mpo=mpo.nodes[0].get_tensor()
-
-        # scale=self._dimension
-        # mpo.nodes[0].set_tensor(first_in_mpo*(scale**(exponents_cut[0]-1)))        
+        for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
+            node.set_tensor(tensor ** exponent)
 
         #mpo = self._mpo.copy()
 
