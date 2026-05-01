@@ -269,6 +269,11 @@ class PtTempoBackend:
 
         k1 = self._step - 1
 
+        exponents_cut = [
+                np.sqrt(self._alpha_t[k1] * self._alpha_t[k2])
+                for k2 in range(k1, len(tensors)+k1)
+                ]
+
         for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
             node.set_tensor(tensor ** exponent)
 
