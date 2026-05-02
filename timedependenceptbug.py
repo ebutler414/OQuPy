@@ -80,14 +80,14 @@ dynamicspttestswitch=oqupy.compute_dynamics(
 # %%
 
 states=dynamicspttestswitch.states
-rescale=True
+rescale=False
 if rescale:
     states=states/(states[0].trace())
 dynamicspttestswitch._states=states
 t2,sx2=dynamicspttestswitch.expectations(op.sigma('x'),real=True)
 #t3,sx3=dynamicspttestswitch2.expectations(op.sigma('x'),real=True)
 
-runtempo=True
+runtempo=False
 if runtempo:
     tempores=oqupy.tempo_compute(system=system,
                                 bath=bath,

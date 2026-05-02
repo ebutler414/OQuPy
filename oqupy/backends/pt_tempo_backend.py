@@ -111,6 +111,9 @@ class PtTempoBackend:
         # copy and contract mpo to mps
         scale = self._dimension
 
+        
+        #scale = 1
+
         self._sum_north_scaled = self._sum_north * scale
 
         if self._degeneracy_maps is not None:
@@ -121,6 +124,12 @@ class PtTempoBackend:
         influences_mpo = []
         influences_mps = []
         for i in range(self._num_infl):
+
+            if self._alpha_t is not None:
+                ifpow=np.sqrt(self._alpha_t[0]*self._alpha_t[i])
+            else:
+                ifpow=1
+
             if i == 0:
                 infl = self._influence(i)
                 infl = infl / scale
@@ -139,23 +148,19 @@ class PtTempoBackend:
                         tmp_mps[i1][north_degeneracy_map[i1]] = \
                             infl[north_degeneracy_map[i1]]/ scale
                     infl_mpo = tmp_mpo
-                    infl_mps = tmp_mps
+                    infl_mps = (tmp_mps ** ifpow) * scale**(2*ifpow-2) # not tested
                 else:
                     infl_mpo = util.create_delta(infl, [1, 1, 0])
-                    infl_mps = infl.T / scale
+                    infl_mps = (infl**ifpow).T * scale**(ifpow-2)
             elif i == self._num_infl-1:
                 infl = self._influence(i)
                 infl_mpo = util.add_singleton(infl, 1)
                 infl_mpo = util.add_singleton(infl_mpo, 3)
-                infl_mps = util.add_singleton(infl, 2)
+                infl_mps = util.add_singleton((infl**ifpow), 2)
             else:
                 infl = self._influence(i)
                 infl_mpo = util.create_delta(infl, [0, 1, 1, 0])
-                infl_mps = util.create_delta(infl / scale, [0, 1, 0])
-
-            alpha_t=self._alpha_t
-            if alpha_t is not None:
-                    infl_mps = infl_mps ** (np.sqrt(alpha_t[0]*alpha_t[i]))
+                infl_mps = util.create_delta((infl**ifpow) / scale, [0, 1, 0])
 
             influences_mpo.append(infl_mpo)
             influences_mps.append(infl_mps)
@@ -273,13 +278,19 @@ class PtTempoBackend:
 
         k1 = self._step - 1
 
-        exponents_cut = [
-                np.sqrt(self._alpha_t[k1] * self._alpha_t[k2])
-                for k2 in range(k1, len(tensors)+k1)
-                ]
+        alpha_t=self._alpha_t
 
-        for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
-            node.set_tensor(tensor ** exponent)
+        alpha_t=None
+
+        if alpha_t is not None:
+
+            exponents_cut = [
+                    np.sqrt(self._alpha_t[k1] * self._alpha_t[k2])
+                    for k2 in range(k1, len(tensors)+k1)
+                    ]
+
+            for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
+                node.set_tensor(tensor ** exponent)
 
         #mpo = self._mpo.copy()
 
