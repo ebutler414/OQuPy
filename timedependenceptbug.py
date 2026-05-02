@@ -58,7 +58,7 @@ smv=np.vectorize(smswitch)
 alpharamp=smv(times)
 
 # %%
-alpharamp=np.ones(len(times))
+#alpharamp=0.3*np.ones(len(times))
 pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
                              start_time=0,
                              end_time=tf,
@@ -80,7 +80,7 @@ dynamicspttestswitch=oqupy.compute_dynamics(
 # %%
 
 states=dynamicspttestswitch.states
-rescale=False
+rescale=True
 if rescale:
     states=states/(states[0].trace())
 dynamicspttestswitch._states=states

@@ -153,6 +153,10 @@ class PtTempoBackend:
                 infl_mpo = util.create_delta(infl, [0, 1, 1, 0])
                 infl_mps = util.create_delta(infl / scale, [0, 1, 0])
 
+            alpha_t=self._alpha_t
+            if alpha_t is not None:
+                    infl_mps = infl_mps ** (np.sqrt(alpha_t[0]*alpha_t[i]))
+
             influences_mpo.append(infl_mpo)
             influences_mps.append(infl_mps)
 
