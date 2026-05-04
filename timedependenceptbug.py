@@ -27,6 +27,9 @@ epsrel = pt_parameters['epsrel']
 # dt = 1./omega_cutoff/np.sqrt(3)
 dt=pt_parameters['dt']
 
+splitting=1.0
+rhoini=op.spin_dm('x-')
+system=oqupy.System(splitting*op.sigma('x')/2)
 
 # spectral density (without cutoff)
 def j(w):
@@ -59,6 +62,7 @@ alpharamp=smv(times)
 
 # %%
 # alpharamp=0.3*np.ones(len(times))
+
 pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
                              start_time=0,
                              end_time=tf,
@@ -67,9 +71,7 @@ pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
 
 
 # %%
-splitting=1.0
-rhoini=op.spin_dm('x-')
-system=oqupy.System(splitting*op.sigma('x')/2)
+
 dynamicspttestswitch=oqupy.compute_dynamics(
     process_tensor=pttempotestswitch,        
     system=system,
@@ -88,7 +90,7 @@ t2,sx2=dynamicspttestswitch.expectations(op.sigma('x'),real=True)
 #t3,sx3=dynamicspttestswitch2.expectations(op.sigma('x'),real=True)
 
 # %%
-runtempo=False
+runtempo=True
 if runtempo:
     tempores=oqupy.tempo_compute(system=system,
                                 bath=bath,
