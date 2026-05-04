@@ -521,7 +521,7 @@ class BaseTempoBackend:
             tensors = [nodes.get_tensor() for nodes in mpo.nodes] 
 
             exponents = [np.sqrt(self._alpha_t[current_step-1]*self._alpha_t[k2]) for k2 in range(0,current_step)]
-            exponents_cut = exponents[:np.shape(tensors)[0]]
+            exponents_cut = exponents[:len(tensors)]
 
             [node.set_tensor(tensor**exponent) for node,tensor,exponent in zip(mpo.nodes, tensors, exponents_cut)]
 
