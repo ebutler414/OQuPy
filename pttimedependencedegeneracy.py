@@ -72,7 +72,7 @@ if testtempo:
         tempo_params_C,
         initial_state_C,
         start_time=0.0,
-        unique=False,
+        unique=True,
         alpha_t=alpharamp)
 
     tempo_non_unique = oqupy.Tempo(
@@ -83,6 +83,7 @@ if testtempo:
         start_time=0.0,
         unique=False,
         alpha_t=alpharamp)
+    
     tempo_unique.compute(end_time=t_end_C)
     tempo_non_unique.compute(end_time=t_end_C)
     dyn_unique = tempo_unique.get_dynamics()
