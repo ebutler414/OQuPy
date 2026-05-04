@@ -67,7 +67,8 @@ pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
                              start_time=0,
                              end_time=tf,
                              parameters=parameters,
-                             alpha_t=alpharamp)
+                             alpha_t=alpharamp,
+                             unique=True)
 
 
 # %%
@@ -98,7 +99,8 @@ if runtempo:
                                 start_time=0.0,
                                 end_time=tf,
                                 alpha_t=alpharamp,
-                                parameters=parameters)
+                                parameters=parameters,
+                                unique=True)
 
     t3,sx3=tempores.expectations(op.sigma('x'),real=True)
 

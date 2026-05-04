@@ -72,7 +72,7 @@ if testtempo:
         tempo_params_C,
         initial_state_C,
         start_time=0.0,
-        unique=True,
+        unique=False,
         alpha_t=alpharamp)
 
     tempo_non_unique = oqupy.Tempo(
