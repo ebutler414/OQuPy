@@ -41,7 +41,7 @@ correlations = oqupy.PowerLawSD(alpha=alpha,
                                 cutoff_type='exponential',
                                 temperature=temperature)
 bath = oqupy.Bath(op.sigma("z")/2.0, correlations)
-parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel,dkmax=None)
+parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel,dkmax=50)
 
 # %%
 # smooth switching function
@@ -51,14 +51,14 @@ numsteps=int(tf/dt)
 times=np.arange(numsteps)*dt
 def smswitch(t):
     if t<=tf:
-        return (0.1+0.9*(t**lamconst/(t**(lamconst)+(tf-t)**(lamconst))))
+        return (0.1+1.3*(t**lamconst/(t**(lamconst)+(tf-t)**(lamconst))))
     else:
         return 1.0
 smv=np.vectorize(smswitch)
 alpharamp=smv(times)
 
 # %%
-#alpharamp=0.3*np.ones(len(times))
+# alpharamp=0.3*np.ones(len(times))
 pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
                              start_time=0,
                              end_time=tf,
@@ -87,6 +87,7 @@ dynamicspttestswitch._states=states
 t2,sx2=dynamicspttestswitch.expectations(op.sigma('x'),real=True)
 #t3,sx3=dynamicspttestswitch2.expectations(op.sigma('x'),real=True)
 
+# %%
 runtempo=False
 if runtempo:
     tempores=oqupy.tempo_compute(system=system,

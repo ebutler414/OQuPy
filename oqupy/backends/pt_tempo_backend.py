@@ -150,7 +150,7 @@ class PtTempoBackend:
                     infl_mpo = tmp_mpo
                     infl_mps = (tmp_mps ** ifpow) * scale**(2*ifpow-2) # not tested
                 else:
-                    infl_mpo = util.create_delta(infl, [1, 1, 0])
+                    infl_mpo = util.create_delta(infl, [1, 1, 0]) # nb this block includes 1/scale
                     infl_mps = (infl**ifpow).T * scale**(ifpow-2)
             elif i == self._num_infl-1:
                 infl = self._influence(i)
@@ -274,25 +274,26 @@ class PtTempoBackend:
                                 name="Thee updated MPS")
         mpo = self._mpo.copy()
 
-        tensors = [node.get_tensor() for node in mpo.nodes]
-
-        k1 = self._step - 1
-
-        alpha_t=self._alpha_t
-
-        alpha_t=None
-
-        if alpha_t is not None:
-
+        if self._alpha_t is not None:
+            tensors = [node.get_tensor() for node in mpo.nodes]
+            k1 = self._step - 1
             exponents_cut = [
                     np.sqrt(self._alpha_t[k1] * self._alpha_t[k2])
                     for k2 in range(k1, len(tensors)+k1)
                     ]
+            
+            for i in range(len(tensors)):
+                tensors[i]=tensors[i] ** exponents_cut[i]
+                if (len(tensors)>1):
+                    if i==0:
+                        scale=self._dimension
+                        tensors[i]=tensors[i] * scale**(exponents_cut[i]-1)
+                    elif (end_phase and i==len(tensors)-1):
+                        scale=self._dimension
+                        tensors[i]=tensors[i] / scale**(exponents_cut[i]-1)
 
             for node, tensor, exponent in zip(mpo.nodes, tensors, exponents_cut):
-                node.set_tensor(tensor ** exponent)
-
-        #mpo = self._mpo.copy()
+                node.set_tensor(tensor)
 
         self._mps.zip_up(mpo,
                          axes=[(0,0)],
