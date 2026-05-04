@@ -44,7 +44,7 @@ correlations = oqupy.PowerLawSD(alpha=alpha,
                                 cutoff_type='exponential',
                                 temperature=temperature)
 bath = oqupy.Bath(op.sigma("z")/2.0, correlations)
-parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel,dkmax=50)
+parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel)
 
 # %%
 # smooth switching function
