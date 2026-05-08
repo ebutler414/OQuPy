@@ -49,7 +49,7 @@ parameters=oqupy.TempoParameters(dt=dt,epsrel=epsrel)
 # %%
 # smooth switching function
 lamconst=2
-tf=30
+tf=10
 numsteps=int(tf/dt)
 times=np.arange(numsteps)*dt
 def smswitch(t):
@@ -67,14 +67,23 @@ pttempotestswitch=oqupy.pt_tempo_compute(bath=bath,
                              start_time=0,
                              end_time=tf,
                              parameters=parameters,
-                             alpha_t=alpharamp,
-                             unique=True)
+                             alpha_t=alpharamp)
 
+pttempostandard=oqupy.pt_tempo_compute(bath=bath,
+                             start_time=0,
+                             end_time=tf,
+                             parameters=parameters)
 
 # %%
 
 dynamicspttestswitch=oqupy.compute_dynamics(
     process_tensor=pttempotestswitch,        
+    system=system,
+    initial_state=rhoini,
+    start_time=0)
+
+dynamicsstandard=oqupy.compute_dynamics(
+    process_tensor=pttempostandard,        
     system=system,
     initial_state=rhoini,
     start_time=0)
@@ -87,6 +96,8 @@ rescale=False
 if rescale:
     states=states/(states[0].trace())
 dynamicspttestswitch._states=states
+
+t1,sx1=dynamicsstandard.expectations(op.sigma('x'),real=True)
 t2,sx2=dynamicspttestswitch.expectations(op.sigma('x'),real=True)
 #t3,sx3=dynamicspttestswitch2.expectations(op.sigma('x'),real=True)
 
@@ -99,18 +110,19 @@ if runtempo:
                                 start_time=0.0,
                                 end_time=tf,
                                 alpha_t=alpharamp,
-                                parameters=parameters,
-                                unique=True)
+                                parameters=parameters)
 
     t3,sx3=tempores.expectations(op.sigma('x'),real=True)
-
+#%%
 fig,ax=plt.subplots(1)
 #ax.plot(t,sx,'o')
-ax.plot(t2,sx2,label='PT-TEMPO')
+ax.plot(t1,sx1,label='PT-TEMPO (standard)')
+ax.plot(t2,sx2,label='PT-TEMPO (smooth switch)')
 if runtempo:
-    ax.plot(t3,sx3,label='TEMPO')
+    ax.plot(t3,sx3,label='TEMPO (smooth switch)')
 #ax2=ax.twinx()
 #ax2.plot(t,alpha_tramp)
+ax.set_ylim(-1,-0.9)
 ax.legend()
 plt.show()
 

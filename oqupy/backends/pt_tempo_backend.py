@@ -63,9 +63,9 @@ class PtTempoBackend:
             num_steps: int,
             dkmax: int,
             epsrel: float,
-            alpha_t: ndarray,
             config: Dict,
-            degeneracy_maps: Optional[List[ndarray]] = None):
+            degeneracy_maps: Optional[List[ndarray]] = None,
+            alpha_t: Optional[ndarray] = None):
         """Create a BasePtTempoBackend object. """
         self._dimension = dimension
         self._influence = influence

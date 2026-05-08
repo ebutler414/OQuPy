@@ -349,10 +349,10 @@ class BaseTempoBackend:
             sum_west: ndarray,
             dkmax: int,
             epsrel: float,
-            alpha_t : Optional[ndarray] = None,
             config: Optional[Dict] = None,
             degeneracy_maps: Optional[List[ndarray]] = None,
-            dim: Optional[int] = None):
+            dim: Optional[int] = None,
+            alpha_t : Optional[ndarray] = None):
         """Create a TempoBackend object. """
         self._initial_state = initial_state
         self._influence = influence
@@ -600,10 +600,10 @@ class TempoBackend(BaseTempoBackend):
             sum_west: ndarray,
             dkmax: int,
             epsrel: float,
-            alpha_t: Optional[ndarray] = None,
             config: Optional[Dict] = None,
             degeneracy_maps: Optional[List[ndarray]] = None,
-            dim: Optional[int] = None):
+            dim: Optional[int] = None,
+            alpha_t: Optional[ndarray] = None):
         """Create a TempoBackend object. """
         super().__init__(
             initial_state,
@@ -613,10 +613,10 @@ class TempoBackend(BaseTempoBackend):
             sum_west,
             dkmax,
             epsrel,
-            alpha_t,
             config,
             degeneracy_maps,
-            dim)
+            dim,
+            alpha_t=alpha_t)
         self._propagators = propagators
 
     def initialize(self) -> Tuple[int, ndarray]:

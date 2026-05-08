@@ -311,11 +311,11 @@ class Tempo(BaseAPIClass):
             parameters: TempoParameters,
             initial_state: ndarray,
             start_time: float,
-            alpha_t : Optional[ndarray] = None,
             unique: Optional[bool] = False,
             backend_config: Optional[Dict] = None,
             name: Optional[Text] = None,
-            description: Optional[Text] = None) -> None:
+            description: Optional[Text] = None,
+            alpha_t : Optional[ndarray] = None) -> None:
         """Create a Tempo object. """
         super().__init__(name, description)
 
@@ -443,10 +443,10 @@ class Tempo(BaseAPIClass):
                 sum_west,
                 dkmax,
                 epsrel,
-                alpha_t,
                 config=self._backend_config,
                 degeneracy_maps=degeneracy_maps,
-                dim=dim)
+                dim=dim,
+                alpha_t=alpha_t)
 
     def _init_dynamics(self):
         """Create a Dynamics object with metadata from the Tempo object. """
@@ -1218,14 +1218,14 @@ def tempo_compute(
         initial_state: ndarray,
         start_time: float,
         end_time: float,
-        alpha_t : Optional[ndarray] = None,
         parameters: Optional[TempoParameters] = None,
         tolerance: Optional[float] = DEFAULT_TOLERANCE,
         unique: Optional[bool] = False,
         backend_config: Optional[Dict] = None,
         progress_type: Optional[Text] = None,
         name: Optional[Text] = None,
-        description: Optional[Text] = None) -> Dynamics:
+        description: Optional[Text] = None,
+        alpha_t : Optional[ndarray] = None) -> Dynamics:
     """
     Shortcut for creating a Tempo object and running the computation.
     Cannot be used to create MeanFieldTempo objects.
@@ -1275,11 +1275,11 @@ def tempo_compute(
                   parameters,
                   initial_state,
                   start_time,
-                  alpha_t,
                   unique,
                   backend_config,
                   name,
-                  description)
+                  description,
+                  alpha_t)
     tempo.compute(end_time, progress_type=progress_type)
     return tempo.get_dynamics()
 
