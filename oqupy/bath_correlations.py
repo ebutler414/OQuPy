@@ -552,12 +552,6 @@ class CustomSD(BaseCorrelations):
         """
 
 
-        #if self.cutoff_type == 'exponential' and self.zeta == 1: 
-
-        #    i1 = 2.0*self.alpha*sum([k2*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0]])
-        #    i2 = -1j*2.0*self.alpha*(np.arctan(self.cutoff*tau)-self.cutoff*tau)
-
-        #    return -(i1+i2)
 
         
         # real and imaginary part of the integrand
@@ -601,17 +595,7 @@ class CustomSD(BaseCorrelations):
             integral = integral.real
         return -integral
 
-    def eta_function_analytic(
-            self,
-            tau: ArrayLike,
-            epsrel: Optional[float] = INTEGRATE_EPSREL,
-            subdiv_limit: Optional[int] = SUBDIV_LIMIT,
-            matsubara: Optional[bool] = False) -> ArrayLike:
-        r""" obtained for ohmic baths with exponential cutoff"""
-        i1 = 2.0*self.alpha*sum([k2*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0]])
-        i2 = -1j*2.0*self.alpha*(np.arctan(self.cutoff*tau)-self.cutoff*tau)
-        
-        return -(i1+i2)
+
 
     def correlation_2d_integral(
             self,
@@ -1667,6 +1651,32 @@ class PowerLawSD(CustomSD):
         ret.append("  zeta          = {} \n".format(self.zeta))
 
         return "".join(ret)
+    
+    def eta_function(
+            self,
+            tau: ArrayLike,
+            epsrel: Optional[float] = INTEGRATE_EPSREL,
+            subdiv_limit: Optional[int] = SUBDIV_LIMIT,
+            matsubara: Optional[bool] = False) -> ArrayLike:
+        r"""
+        Auto-correlation function associated to the spectral density at the
+        given temperature :math:`T`. Including analytical solution"""
+            
+        if self.cutoff_type == 'exponential' and self.zeta == 1: 
+            if self.temperature == 0.0:
+
+                i1 = -2.0*self.alpha*np.log(1.0j*self.cutoff*tau+1.0)
+                i2 = 2.0*self.alpha*1j*tau*self.cutoff
+
+            else:
+
+                i1 = 2.0*self.alpha*sum([k2*np.real(special.loggamma(self.temperature/self.cutoff+(k1+1.0)/2+1j*self.temperature*tau*(k2+1.0)/2.0)) for k1 in [1.0,-1.0] for k2 in [1.0,-1.0]])
+                i2 = -1j*2.0*self.alpha*(np.arctan(self.cutoff*tau)-self.cutoff*tau)
+
+            return -(i1+i2)
+        
+        else:
+            return super().eta_function(tau,epsrel,subdiv_limit,matsubara)
 
 
 # === CORRELATIONS FROM SPECTRAL DENSITIES ====================================
